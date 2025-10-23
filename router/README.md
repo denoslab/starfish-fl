@@ -1,5 +1,7 @@
 # Starfish Routing Server
 
+![Project Logo](docs/images/starfish.png)
+
 A federated learning (FL) system that is friendly to users with diverse backgrounds,
 for instance, in healthcare. This repo is the Routing Server (RS) component.
 

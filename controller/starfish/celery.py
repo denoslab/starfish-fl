@@ -106,10 +106,26 @@ def process_task(args, run, is_retry):
     model = tasks[cur_seq - 1]['model']
     status = format_status(run['status'])
     model_id = "{}_{}".format(run_id, cur_seq)
-
+    
     try:
-        klass = load_class('starfish.controller.tasks.{}'.format(
-            camel_to_snake(model)), model)
+        snake_name = camel_to_snake(model)
+        klass = None
+        # Try loading from main tasks module first, then stats_models subpackage
+        module_paths = [
+            'starfish.controller.tasks.{}'.format(snake_name),
+            'starfish.controller.tasks.stats_models.{}'.format(snake_name)
+        ]
+        for module_path in module_paths:
+            try:
+                klass = load_class(module_path, model)
+                if klass is not None:
+                    break
+            except (ImportError, AttributeError):
+                continue
+        
+        if klass is None:
+            raise ImportError(f"Model {model} not found in any module path")
+        
         if model_id in ml_models:
             instance = ml_models[model_id]
         else:

@@ -18,6 +18,8 @@ services:
     command: bash -c "cron && poetry run python3 manage.py runserver 0.0.0.0:8000"
     volumes:
       - artifacts:/starfish-controller/local
+      - ./starfish:/app/starfish
+      - ./manage.py:/app/manage.py
 
   controller-scheduler:
     container_name: starfish-controller-scheduler
@@ -31,6 +33,7 @@ services:
     entrypoint: [ "poetry", "run", "celery", "-A", "starfish", "beat", "-l", "DEBUG" ]
     volumes:
       - artifacts:/starfish-controller/local
+      - ./starfish:/app/starfish
 
   controller-run-worker:
     container_name: starfish-controller-run-worker
@@ -44,6 +47,7 @@ services:
     entrypoint: [ "poetry", "run", "celery", "-A", "starfish", "worker", "-l", "DEBUG", "-Q", "starfish.run" ]
     volumes:
       - artifacts:/starfish-controller/local
+      - ./starfish:/app/starfish
 
   controller-processor-worker:
     container_name: starfish-controller-processor-worker
@@ -57,6 +61,7 @@ services:
     entrypoint: [ "poetry", "run", "celery", "-A", "starfish", "worker", "-l", "DEBUG", "--concurrency=1", "-Q", "starfish.processor" ]
     volumes:
       - artifacts:/starfish-controller/local
+      - ./starfish:/app/starfish
 
 
   redis:

@@ -1,20 +1,34 @@
 # Starfish Controller
 
-![Project Logo](docs/images/starfish.png)
+> **Note**: This is a component of the Starfish federated learning platform. For the complete system overview and setup instructions, see the [main README](../README.md).
 
 A federated learning (FL) system that is friendly to users with diverse backgrounds,
-for instance, in healthcare. This repo is the Controller component.
+for instance, in healthcare. This is the Controller component.
 
 ## Overview
 
-A **Controller** will be installed on every site. With the Controller running,
-a Site can act as either a **Coordinator** or a **Participant**.
+A **Controller** is installed on every site participating in federated learning.
+With the Controller running, a Site can act as either a **Coordinator** or a **Participant**.
 
-## Development Setup
+For information about the overall Starfish architecture, see the [main documentation](../README.md).
 
-Choose one of the following methods based on your preference:
+## Installation Options
 
-### Option 1: Docker Compose (Recommended for Development)
+### Option 1: Mono Repo Setup (Recommended)
+
+If you're working with the complete Starfish mono repo, use the workbench for a unified setup:
+
+```shell
+cd ../workbench
+make build
+make up
+```
+
+See the [main README](../README.md) and [workbench documentation](../workbench/README.md) for details.
+
+### Option 2: Standalone Docker Compose
+
+For standalone controller deployment or development:
 
 This is the easiest way to get started. Docker Compose will set up both the application, Redis cache, and Celery workers.
 
@@ -69,7 +83,7 @@ This is the easiest way to get started. Docker Compose will set up both the appl
    docker-compose down
    ```
 
-### Option 2: Local Development (Without Docker)
+### Option 3: Local Development (Without Docker)
 
 This method gives you more control but requires manual setup of Redis and Python environment.
 

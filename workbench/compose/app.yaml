@@ -3,8 +3,9 @@ version: '3.9'
 services:
   router:
     build:
-      context: ../app/starfish-router
+      context: ../../router
     image: starfish-router
+    container_name: starfish-router
     depends_on:
       - postgres
     ports:
@@ -17,8 +18,9 @@ services:
 
   controller:
     build:
-      context: ../app/starfish-controller
+      context: ../../controller
     image: starfish-controller
+    container_name: starfish-controller
     depends_on:
       - postgres
       - redis
@@ -26,51 +28,56 @@ services:
       - '8001:8000'
     env_file:
       - ../config/controller.env
+    command: bash -c "cron && python3 manage.py runserver 0.0.0.0:8000"
     volumes:
       - controller_artifacts:/starfish-controller/local
 
   controller-scheduler:
     build:
-      context: ../app/starfish-controller
+      context: ../../controller
     image: starfish-controller
+    container_name: starfish-controller-scheduler
     depends_on:
       - postgres
       - redis
     env_file:
       - ../config/controller.env
-    entrypoint: ["poetry", "run", "celery", "-A", "starfish", "beat", "-l", "DEBUG"]
+    entrypoint: ["celery", "-A", "starfish", "beat", "-l", "DEBUG"]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
   controller-run-worker:
     build:
-      context: ../app/starfish-controller
+      context: ../../controller
     image: starfish-controller
+    container_name: starfish-controller-run-worker
     depends_on:
       - postgres
       - redis
     env_file:
       - ../config/controller.env
-    entrypoint: ["poetry", "run", "celery", "-A", "starfish", "worker", "-l", "DEBUG", "-Q", "starfish.run"]
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "DEBUG", "-Q", "starfish.run"]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
   controller-processor-worker:
     build:
-      context: ../app/starfish-controller
+      context: ../../controller
     image: starfish-controller
+    container_name: starfish-controller-processor-worker
     depends_on:
       - postgres
       - redis
     env_file:
       - ../config/controller.env
-    entrypoint: ["poetry", "run", "celery", "-A", "starfish", "worker", "-l", "DEBUG", "--concurrency=1", "-Q", "starfish.processor"]
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "DEBUG", "--concurrency=1", "-Q", "starfish.processor"]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
 
   redis:
     image: redis:5.0
+    container_name: starfish-redis
     ports:
       - "6379:6379"
     volumes:
@@ -78,13 +85,20 @@ services:
 
   postgres:
     image: postgres:12.9
+    container_name: starfish-postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - '5432:5432'
     environment:
-      POSTGRES_USERNAME: postgres
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: UCalgary123
+      POSTGRES_DB: starfish-router
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish-router"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
 volumes:
   postgres_data: {}

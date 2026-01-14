@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   postgres:
+    container_name: starfish-router-postgres
     image: postgres:12.9
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -10,9 +11,9 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: UCalgary123
-      POSTGRES_DB: starfish_router
+      POSTGRES_DB: starfish-router
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish_router"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish-router"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -34,18 +35,6 @@ services:
     command: bash -c "cron && poetry run python3 manage.py runserver 0.0.0.0:8000"
     volumes:
       - artifacts:/starfish/artifacts
-
-  postgres:
-    container_name: starfish-router-postgres
-    image: postgres:12.9
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432'
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: UCalgary123
-      POSTGRES_DB: starfish-router
     networks: [starfish-net]
 
 volumes:
@@ -54,4 +43,5 @@ volumes:
 
 networks:
   starfish-net:
-    external: true
+    driver: bridge
+

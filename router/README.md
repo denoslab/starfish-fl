@@ -1,81 +1,46 @@
 # Starfish Routing Server
 
-![Project Logo](docs/images/starfish.png)
+> **Note**: This is a component of the Starfish federated learning platform. For the complete system overview and setup instructions, see the [main README](../README.md).
 
 A federated learning (FL) system that is friendly to users with diverse backgrounds,
-for instance, in healthcare. This repo is the Routing Server (RS) component.
+for instance, in healthcare. This is the Routing Server (RS) component.
 
 ## Overview
 
-The project architecture diagram is shown below.
+The project architecture diagram is shown in the [main README](../README.md).
 
-![Figure 1. Project architecture overview.
-](docs/images/starfish-arch.png)
+### Routing Server (RS) Responsibilities
 
-### Sites
+A **Routing Server (RS)** has two main responsibilities:
 
-A **Site** is a local environment running either local training or model aggregation for FL.
-A site registering to the Routing Server (RS) will update its state on RS.
-A site can create a project and become the coordinator of the project.
-The model aggregation will be done at the site.
-Other sites can join the same project and become participants.
+1. **Persistent Layer**: Providing a persistent layer for administrative data to facilitate smooth FL processes. RS maintains global records of users, sites, projects, and runs.
 
-### Controllers
+2. **Message Forwarding**: Forwarding messages between participants and coordinators in a project.
 
-A **Controller** will be installed on every site. With the Controller running,
-a Site can act as either a **Coordinator** or a **Participant**.
-
-#### Coordinators
-
-As a Coordinator, a Site can create a Project for FL and let other Sites join the Project.
-As a Participant, a Site can join a Project created by a Coordinator.
-
-#### Participants
-
-The Controller will provide a web portal for a local user to manage and inspect the FL process.
-For Sites to communicate with each other, a Routing Server (RS) is required to forward messages and maintain projects.
-RS does not have a web portal by itself.
-
-### Projects, Tasks, and Runs
-
-A Project defines one or multiple FL **Tasks** with one Coordinator and multiple Participants.
-A Project can have an ordered list of predefined Tasks. Each Task will allow its parameters to be customized.
-A Project can have multiple **Runs** to allow repeated training over time.
-
-A Coordinator creates and controls the lifecycle of the Project. It can start a Run of the Project.
-It can also stop the entire Run. The coordinator can view the status and logs of all Participants.
-
-Once a Project is created, other Sites can join as Participants.
-In comparison, a Participant cannot kick-start the participating project.
-It can only passively work under defined processes in a Project.
-A Participant can only view the logs and progress of itself without seeing other Participants.
-
-A Project can have multiple Runs for repeated learning processes. A Run has its states.
-Key events will move the state of a Run.
-
-Commands will be initiated by the coordinator and broadcast to all participants.
-Once started, progress will be sent back to the coordinator periodically.
-RS will exchange local model updates and global model updates.
-
-### Routing Server (RS)
-
-A **Routing Server (RS)** has two responsibilities:
-
-Providing a persistent layer for administrative data to facilitate smooth FL processes.
-RS maintains global records of users, sites, projects, and runs.
-
-Forwarding messages between participants and coordinators in a project.
-
-Note that RS does not do model aggregation. Coordinator does.
+Note that RS does not do model aggregation - the Coordinator does this.
 Currently, Sites exchange information with RS through polling.
-Message payloads can have end-to-end encryption. RS will not be able to read the message payloads.
+Message payloads can have end-to-end encryption, and RS will not be able to read the message payloads.
 Private key exchanges between sites will be done securely.
 
-## Development Setup
+For more details about Sites, Controllers, Projects, Tasks, and Runs, see the [main documentation](../README.md).
 
-Choose one of the following methods based on your preference:
+## Installation Options
 
-### Option 1: Docker Compose (Recommended for Development)
+### Option 1: Mono Repo Setup (Recommended)
+
+If you're working with the complete Starfish mono repo, use the workbench for a unified setup:
+
+```shell
+cd ../workbench
+make build
+make up
+```
+
+See the [main README](../README.md) and [workbench documentation](../workbench/README.md) for details.
+
+### Option 2: Standalone Docker Compose
+
+For standalone router deployment or development:
 
 This is the easiest way to get started. Docker Compose will set up both the application and PostgreSQL database.
 
@@ -125,7 +90,7 @@ This is the easiest way to get started. Docker Compose will set up both the appl
    docker-compose down
    ```
 
-### Option 2: Local Development (Without Docker)
+### Option 3: Local Development (Without Docker)
 
 This method gives you more control but requires manual setup of PostgreSQL and Python environment.
 

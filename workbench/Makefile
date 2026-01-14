@@ -1,9 +1,10 @@
 .PHONY: build 
 
 COMPOSE = docker-compose
-NEXUS_MAG= ./app/nexus-mag
+# Paths updated for mono repo structure
+ROUTER_PATH = ../router
+CONTROLLER_PATH = ../controller
 
-# temp disable build for these repo, using jenkins built binaries instead cyberx_common cyberx_xchange cyberx_xchange_gateway
 build: router controller
 
 router:
@@ -11,9 +12,6 @@ router:
 
 controller:
 	$(COMPOSE) build controller
-
-update:
-	git submodule update --init --remote
 
 up:
 	${COMPOSE} up -d

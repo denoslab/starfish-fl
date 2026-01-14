@@ -1,77 +1,147 @@
 # Starfish Workbench
 
-![Project Logo](docs/images/starfish.png)
+> **Note**: This is a component of the Starfish federated learning platform. For the complete system overview, see the [main README](../README.md).
 
+Local development and test environment for Starfish based on docker-compose.
 
-Local development and test environment for Starfish based on docker-compose
+This workbench provides a unified environment to run and test all Starfish components together.
 
+## Overview
 
-[starfish-router](https://github.com/denoslab/starfish-router) and [starfish-controller](https://github.com/denoslab/starfish-controller) are involved as submodules. Please checkout [Git Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) for more information.
+The workbench orchestrates the following components:
+- **Router**: Routing server for coordinating federated learning
+- **Controller**: Site management and FL task execution  
+- **PostgreSQL**: Database for the router
+- **Redis**: Cache and message broker for the controller
 
-### Submodule
-#### Init Submodules
-Under the root folder of the workbench, execute the following:
-```
-git submodule init
-git submodule update
-```
+All components are configured to work together out of the box.
 
-#### Update Submodules
-Execute the following to update to the latest commit:
-```
-./update_all.sh
-```
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
+- [Make](https://www.gnu.org/software/make/) utility (usually pre-installed on Linux/macOS)
+
+## Quick Start
 
 ### Compile
-We are using [make](https://www.gnu.org/software/make/manual/make.html) utility for easier maintaince. 
 
-Run `make build` to compile all services. 
-```
+We are using [make](https://www.gnu.org/software/make/manual/make.html) utility for easier maintenance. 
+
+Run `make build` to compile all services:
+```bash
 make build
 ```
 
 Or specify `make router` or `make controller` to only compile and build docker image for specific service.
 
-
 ### Run and Stop
 
-```
+Start all services and dependencies:
+```bash
 make up
 ```
-to start all services and dependencies.
 
->---
->**Note**
-> 
->
-> If it is a brand new environment or a clean database, please create the database and a superuser.
->
-> Execute `./init_db.sh` to create a database 
-> 
-> Once the database has been created, you may need to restart the services(`docker-compose restart router`) and run the following commands to create a superuser. 
->
->```
->docker-compose exec -it router bash
->``` 
->to go into the container and run 
->```
->poetry run python3 manage.py migrate
->poetry run python3 manage.py createsuperuser
->``` 
->to create a superuser. 
->
->Please make sure the username and password is configured well in `starfish-workbench/config/controller.env`.
->
->---
+#### First Time Setup
 
+If it is a brand new environment or a clean database, you need to create the database and a superuser:
 
-To stop all services please run
-```
+1. **Create the database:**
+   ```bash
+   ./init_db.sh
+   ```
+
+2. **Restart services** (if needed):
+   ```bash
+   docker-compose restart router
+   ```
+
+3. **Run migrations and create superuser:**
+   ```bash
+   docker-compose exec -it router bash
+   ```
+   
+   Then inside the container:
+   ```bash
+   poetry run python3 manage.py migrate
+   poetry run python3 manage.py createsuperuser
+   ```
+
+4. **Configure credentials:**
+   
+   Make sure the username and password you created match what's configured in `config/controller.env`.
+
+#### Stop Services
+
+To stop all services:
+```bash
 make stop
 ```
-or 
-```
+
+To stop and remove containers:
+```bash
 make down
 ```
-to stop and remove containers. 
+
+## Configuration
+
+Environment variables are managed in the `config/` directory:
+- `config/router.env` - Router configuration
+- `config/controller.env` - Controller configuration
+
+Update these files with your specific settings before running the services.
+
+## Accessing Services
+
+Once running, you can access:
+- **Router API**: http://localhost:8000/starfish/api/v1/
+- **Controller Web UI**: http://localhost:8001/
+
+## Troubleshooting
+
+### Port Conflicts
+
+If you encounter port conflicts (e.g., Redis port 6379 already in use):
+```bash
+sudo systemctl stop redis
+```
+
+### Database Issues
+
+If the database connection fails, ensure PostgreSQL is running:
+```bash
+docker-compose ps postgres
+```
+
+### Viewing Logs
+
+View logs for all services:
+```bash
+docker-compose logs -f
+```
+
+View logs for a specific service:
+```bash
+docker-compose logs -f router
+docker-compose logs -f controller
+```
+
+## Development Workflow
+
+1. Make code changes in `../controller` or `../router` directories
+2. Rebuild the specific service:
+   ```bash
+   make controller  # or make router
+   ```
+3. Restart the service:
+   ```bash
+   docker-compose restart controller  # or router
+   ```
+
+## Additional Information
+
+For more details about each component, see:
+- [Controller Documentation](../controller/README.md)
+- [Router Documentation](../router/README.md)
+- [Main Starfish Documentation](../README.md) 
 

@@ -1,12 +1,14 @@
-# Starfish
+# Starfish-FL - An Agentic Federated Learning (FL) Framework
 
-![Starfish Logo](docs/images/starfish.png)
+![Starfish-FL Logo](docs/images/starfish-fl.png)
 
-A federated learning (FL) system that is friendly to users with diverse backgrounds, for instance, in healthcare. Starfish enables secure, privacy-preserving collaborative machine learning across multiple sites without centralizing sensitive data.
+Starfish-FL is an agentic federated learning (FL) framework that is native to AI agents. It is an essential component of the STARFISH project. It focuses on federated learning and analysis for the Analysis Mandate function of STARFISH.
+
+Starfish-FL also offers a friendly user interface for easy use in domains including healthcare, compututing resource allocation, and finance. Starfish-FL enables secure, privacy-preserving collaborative machine learning across multiple sites without centralizing sensitive data.
 
 ## Overview
 
-Starfish is a complete federated learning platform consisting of three main components:
+Starfish-FL is a complete federatfed learning platform consisting of three main components:
 
 - **[Controller](controller/)** - Site management and FL task execution
 - **[Router](router/)** - Central coordination and message routing  
@@ -14,7 +16,9 @@ Starfish is a complete federated learning platform consisting of three main comp
 
 ### Architecture
 
-![Starfish Architecture](router/docs/images/starfish-arch.png)
+In this section, we use healthcare as an example how Starfish-FL can be used.
+
+![Starfish-FL Architecture](router/docs/images/starfish-arch.png)
 
 ### Key Concepts
 
@@ -46,7 +50,7 @@ Starfish is a complete federated learning platform consisting of three main comp
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd starfish
+   cd starfish-fl
    ```
 
 2. **Start all services using Workbench**
@@ -243,7 +247,7 @@ Contributions are welcome! Please ensure:
 
 ## License
 
-See License files in each component directory.
+Apache 2.0
 
 ## Support
 
@@ -259,9 +263,9 @@ If you use Starfish in your research, please cite:
 
 ```
 @software{starfish,
-  title = {Starfish: A Federated Learning System},
+  title = {Starfish-FL: A Federated Learning System},
   author = {DENOS Lab},
   year = {2026},
-  url = {https://github.com/denoslab/starfish}
+  url = {https://github.com/denoslab/starfish-fl}
 }
 ```

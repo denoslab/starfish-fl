@@ -68,18 +68,11 @@ class TaskValidator:
             model = task['model']
             model_class = None
             snake_name = camel_to_snake(model)
-            # Try loading from main tasks module first, then stats_models subpackage
-            module_paths = [
-                'starfish.controller.tasks.{}'.format(snake_name),
-                'starfish.controller.tasks.stats_models.{}'.format(snake_name)
-            ]
-            for module_path in module_paths:
-                try:
-                    model_class = load_class(module_path, model)
-                    if model_class is not None:
-                        break
-                except (ImportError, AttributeError):
-                    continue
+            module_path = 'starfish.controller.tasks.{}'.format(snake_name)
+            try:
+                model_class = load_class(module_path, model)
+            except (ImportError, AttributeError):
+                pass
             if model_class is None:
                 logger.warn("{} not found in any module path".format(model))
                 self.errors.append(

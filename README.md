@@ -70,6 +70,7 @@ In this section, we use healthcare as an example how Starfish-FL can be used.
 
 4. **Create superuser for router** (first time only)
    ```bash
+   docker exec -it starfish-router poetry run python3 manage.py makemigrations
    docker exec -it starfish-router poetry run python3 manage.py migrate
    docker exec -it starfish-router poetry run python3 manage.py createsuperuser
    ```
@@ -131,6 +132,7 @@ See [router/README.md](router/README.md) for detailed installation and configura
 ```bash
 cd router
 docker-compose up -d
+docker exec -it starfish-router poetry run python3 manage.py makemigrations
 docker exec -it starfish-router poetry run python3 manage.py migrate
 docker exec -it starfish-router poetry run python3 manage.py createsuperuser
 ```

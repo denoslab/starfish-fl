@@ -11,7 +11,7 @@ from unittest.mock import patch
 from statsmodels.genmod.bayes_mixed_glm import BinomialBayesMixedGLM
 from sklearn.model_selection import train_test_split
 
-from starfish.controller.tasks.stats_models.mixed_effects_logistic_regression import (
+from starfish.controller.tasks.mixed_effects_logistic_regression import (
     MixedEffectsLogisticRegression,
 )
 

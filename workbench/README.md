@@ -60,9 +60,10 @@ If it is a brand new environment or a clean database, you need to create the dat
    ```bash
    docker-compose exec -it router bash
    ```
-   
+
    Then inside the container:
    ```bash
+   poetry run python3 manage.py makemigrations
    poetry run python3 manage.py migrate
    poetry run python3 manage.py createsuperuser
    ```

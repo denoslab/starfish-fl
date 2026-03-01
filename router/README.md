@@ -206,11 +206,13 @@ This method gives you more control but requires manual setup of PostgreSQL and P
 
 8. **Run database migrations**
    ```shell
+   python3 manage.py makemigrations
    python3 manage.py migrate
    ```
-   
+
    **Note:** On Windows, you might need to use `python` instead of `python3`:
    ```powershell
+   python manage.py makemigrations
    python manage.py migrate
    ```
 

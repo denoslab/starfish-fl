@@ -1,4 +1,4 @@
-# Starfish-FL - An Agentic Federated Learning (FL) Framework
+# An Agentic Federated Learning Framework
 
 ![Starfish-FL Logo](docs/images/starfish-fl.png)
 

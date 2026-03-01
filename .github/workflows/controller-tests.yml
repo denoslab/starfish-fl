@@ -1,0 +1,48 @@
+name: Controller Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      CELERY_BROKER_URL: redis://localhost:6379
+      CELERY_RESULT_BACKEND: redis://localhost:6379
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    defaults:
+      run:
+        working-directory: controller
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Run tests
+        run: poetry run python3 manage.py test

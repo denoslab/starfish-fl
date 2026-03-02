@@ -40,14 +40,17 @@ SUCCESS_TIMEOUT_S = 180  # seconds to wait for all runs to finish
 
 def _parse_project_ids(page: Page) -> tuple[int, int]:
     """
-    Parse project_id and site_id from the 'Project Details' link on the home page.
-    The link href is like /controller/projects/{project_id}/{site_id}.
+    Parse project_id and site_id from the project detail link on the home page.
+    The link href is a relative path like projects/{project_id}/{site_id} (no
+    leading slash), so we iterate all project-related links and pick the first
+    one whose href contains two consecutive integers.
     """
-    link = page.locator('a[href*="/controller/projects/"]').first
-    href = link.get_attribute("href")
-    m = re.search(r"/projects/(\d+)/(\d+)", href)
-    assert m, f"Could not parse project/site IDs from href: {href}"
-    return int(m.group(1)), int(m.group(2))
+    for link in page.locator('a[href*="projects/"]').all():
+        href = link.get_attribute("href") or ""
+        m = re.search(r"projects/(\d+)/(\d+)", href)
+        if m:
+            return int(m.group(1)), int(m.group(2))
+    raise AssertionError("Could not find a project detail link on the page")
 
 
 def _upload_dataset_for_site(page: Page, base: str, project_id: int, site_id: int,

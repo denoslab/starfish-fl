@@ -149,8 +149,9 @@ def test_fl_workflow(pages, base_a, base_b, base_c, fixtures_dir):
     page_a.fill('textarea[name="description"]', "E2E test project")
     page_a.fill('textarea[name="tasks"]', TASKS_JSON)
     page_a.click('[name="create_project"]')
-    # The JS does window.location.href = "/" which Django redirects to /controller/
-    page_a.wait_for_load_state("domcontentloaded")
+    # The form submits via AJAX; on success JS does window.location.href = "/"
+    # which Django redirects to /controller/ — wait for that final URL.
+    page_a.wait_for_url(f"{base_a}/controller/", timeout=15_000)
 
     assert PROJECT_NAME in page_a.content(), (
         "Step 2 – Coordinator: project should appear on home page after creation"

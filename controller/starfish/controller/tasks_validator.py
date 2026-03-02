@@ -68,7 +68,7 @@ class TaskValidator:
             model = task['model']
             model_class = None
             snake_name = camel_to_snake(model)
-            module_path = 'starfish.controller.tasks.{}'.format(snake_name)
+            module_path = 'starfish.controller.tasks.{}.task'.format(snake_name)
             try:
                 model_class = load_class(module_path, model)
             except (ImportError, AttributeError):

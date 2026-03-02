@@ -76,14 +76,12 @@ services:
       - '8000:8000'
     env_file:
       - ./config/router.env
+    environment:
+      DJANGO_SUPERUSER_PASSWORD: "1234"
     command: >
       bash -c "
         poetry run python3 manage.py migrate --no-input &&
-        poetry run python3 manage.py shell -c \"
-from django.contrib.auth import get_user_model
-U = get_user_model()
-U.objects.filter(username='admin').exists() or U.objects.create_superuser('admin','admin@e2e.local','1234')
-\" &&
+        poetry run python3 manage.py createsuperuser --noinput --username admin --email admin@e2e.local 2>/dev/null || true &&
         poetry run python3 manage.py runserver 0.0.0.0:8000
       "
     volumes:

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from statsmodels.miscmodels.ordinal_model import OrderedModel
 from sklearn.model_selection import train_test_split
 
-from starfish.controller.tasks.stats_models.ordinal_logistic_regression import (
+from starfish.controller.tasks.ordinal_logistic_regression import (
     OrdinalLogisticRegression,
 )
 

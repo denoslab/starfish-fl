@@ -10,7 +10,7 @@ from unittest.mock import patch
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 
-from starfish.controller.tasks.stats_models.ancova import Ancova
+from starfish.controller.tasks.ancova import Ancova
 
 
 # ---------------------------------------------------------------------------

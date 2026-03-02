@@ -11,7 +11,7 @@ import sklearn.linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from starfish.controller.tasks.linear_regression import LinearRegression
+from starfish.controller.tasks.linear_regression.task import LinearRegression
 
 
 # ---------------------------------------------------------------------------

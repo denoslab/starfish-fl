@@ -11,7 +11,7 @@ import sklearn.svm
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from starfish.controller.tasks.svm_regression import SvmRegression
+from starfish.controller.tasks.svm_regression.task import SvmRegression
 
 
 # ---------------------------------------------------------------------------

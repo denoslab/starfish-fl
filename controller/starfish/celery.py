@@ -110,7 +110,7 @@ def process_task(args, run, is_retry):
     try:
         snake_name = camel_to_snake(model)
         klass = None
-        module_path = 'starfish.controller.tasks.{}'.format(snake_name)
+        module_path = 'starfish.controller.tasks.{}.task'.format(snake_name)
         try:
             klass = load_class(module_path, model)
         except (ImportError, AttributeError):

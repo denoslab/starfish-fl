@@ -191,12 +191,24 @@ def test_fl_workflow(pages, base_a, base_b, base_c, fixtures_dir):
 
     # ── Step 5: All sites upload their datasets ───────────────────────────────
 
-    _upload_dataset_for_site(page_a, base_a, project_id, site_a_id,
-                             fixtures_dir / "site_a.csv")
+    # Participants upload first so their router status reaches PREPARING before
+    # the coordinator's upload fires.
     _upload_dataset_for_site(page_b, base_b, project_id, site_b_id,
                              fixtures_dir / "site_b.csv")
     _upload_dataset_for_site(page_c, base_c, project_id, site_c_id,
                              fixtures_dir / "site_c.csv")
+
+    # Wait for participants' fetch_run beat (fires every 5 s) to trigger at
+    # least twice, dispatch process_task('preparing'), and complete
+    # prepare_data() — which initialises the ML model in the ml_models
+    # singleton — before the coordinator's upload fires the PREPARING→RUNNING
+    # transition for all runs.
+    time.sleep(15)
+
+    # Coordinator uploads last: its upload causes preparing() to call
+    # notify(4, update_all=True) only after participants are already prepared.
+    _upload_dataset_for_site(page_a, base_a, project_id, site_a_id,
+                             fixtures_dir / "site_a.csv")
 
     # ── Step 6: Wait for all runs to reach Success ────────────────────────────
 

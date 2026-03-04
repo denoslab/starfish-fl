@@ -1,0 +1,282 @@
+version: '3.9'
+
+# Three-site E2E environment
+#   site-a (coordinator)   - port 8001 - Redis DB 1
+#   site-b (participant 1) - port 8002 - Redis DB 2
+#   site-c (participant 2) - port 8003 - Redis DB 3
+# Shared: postgres, redis, router
+
+x-controller-build: &controller-build
+  build:
+    context: ../../controller
+  image: starfish-controller
+
+# ── per-site environment anchors ──────────────────────────────────────────────
+
+x-site-a-env: &site-a-env
+  SITE_UID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  ROUTER_URL: http://router:8000/starfish/api/v1
+  ROUTER_USERNAME: admin
+  ROUTER_PASSWORD: "1234"
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+x-site-b-env: &site-b-env
+  SITE_UID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  ROUTER_URL: http://router:8000/starfish/api/v1
+  ROUTER_USERNAME: admin
+  ROUTER_PASSWORD: "1234"
+  CELERY_BROKER_URL: redis://redis:6379/2
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+x-site-c-env: &site-c-env
+  SITE_UID: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  ROUTER_URL: http://router:8000/starfish/api/v1
+  ROUTER_USERNAME: admin
+  ROUTER_PASSWORD: "1234"
+  CELERY_BROKER_URL: redis://redis:6379/3
+  CELERY_RESULT_BACKEND: redis://redis:6379/3
+
+services:
+
+  # ── shared infrastructure ──────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:12.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: UCalgary123
+      POSTGRES_DB: starfish-router
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish-router"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - e2e_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:5.0
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - e2e_redis_data:/opt/redis/data
+
+  router:
+    build:
+      context: ../../router
+    image: starfish-router
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '8000:8000'
+    env_file:
+      - ./config/router.env
+    environment:
+      DJANGO_SUPERUSER_PASSWORD: "1234"
+    command: >
+      bash -c "
+        poetry run python3 manage.py migrate --no-input &&
+        poetry run python3 manage.py createsuperuser --noinput --username admin --email admin@e2e.local 2>/dev/null || true &&
+        poetry run python3 manage.py runserver 0.0.0.0:8000
+      "
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8000)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    volumes:
+      - e2e_router_artifacts:/starfish/artifacts
+
+  # ── site-a (coordinator, port 8001) ───────────────────────────────────────
+
+  controller-a:
+    <<: *controller-build
+    container_name: e2e-controller-a
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    ports:
+      - '8001:8000'
+    environment:
+      <<: *site-a-env
+    command: bash -c "python3 manage.py migrate --no-input && python3 manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - e2e_controller_a:/starfish-controller/local
+
+  controller-a-scheduler:
+    <<: *controller-build
+    container_name: e2e-controller-a-scheduler
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-a-env
+    entrypoint: ["celery", "-A", "starfish", "beat", "-l", "INFO"]
+    volumes:
+      - e2e_controller_a:/starfish-controller/local
+
+  controller-a-run-worker:
+    <<: *controller-build
+    container_name: e2e-controller-a-run-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-a-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "-Q", "starfish.run"]
+    volumes:
+      - e2e_controller_a:/starfish-controller/local
+
+  controller-a-processor-worker:
+    <<: *controller-build
+    container_name: e2e-controller-a-processor-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-a-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "--concurrency=1", "-Q", "starfish.processor"]
+    volumes:
+      - e2e_controller_a:/starfish-controller/local
+
+  # ── site-b (participant 1, port 8002) ─────────────────────────────────────
+
+  controller-b:
+    <<: *controller-build
+    container_name: e2e-controller-b
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    ports:
+      - '8002:8000'
+    environment:
+      <<: *site-b-env
+    command: bash -c "python3 manage.py migrate --no-input && python3 manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - e2e_controller_b:/starfish-controller/local
+
+  controller-b-scheduler:
+    <<: *controller-build
+    container_name: e2e-controller-b-scheduler
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-b-env
+    entrypoint: ["celery", "-A", "starfish", "beat", "-l", "INFO"]
+    volumes:
+      - e2e_controller_b:/starfish-controller/local
+
+  controller-b-run-worker:
+    <<: *controller-build
+    container_name: e2e-controller-b-run-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-b-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "-Q", "starfish.run"]
+    volumes:
+      - e2e_controller_b:/starfish-controller/local
+
+  controller-b-processor-worker:
+    <<: *controller-build
+    container_name: e2e-controller-b-processor-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-b-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "--concurrency=1", "-Q", "starfish.processor"]
+    volumes:
+      - e2e_controller_b:/starfish-controller/local
+
+  # ── site-c (participant 2, port 8003) ─────────────────────────────────────
+
+  controller-c:
+    <<: *controller-build
+    container_name: e2e-controller-c
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    ports:
+      - '8003:8000'
+    environment:
+      <<: *site-c-env
+    command: bash -c "python3 manage.py migrate --no-input && python3 manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - e2e_controller_c:/starfish-controller/local
+
+  controller-c-scheduler:
+    <<: *controller-build
+    container_name: e2e-controller-c-scheduler
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-c-env
+    entrypoint: ["celery", "-A", "starfish", "beat", "-l", "INFO"]
+    volumes:
+      - e2e_controller_c:/starfish-controller/local
+
+  controller-c-run-worker:
+    <<: *controller-build
+    container_name: e2e-controller-c-run-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-c-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "-Q", "starfish.run"]
+    volumes:
+      - e2e_controller_c:/starfish-controller/local
+
+  controller-c-processor-worker:
+    <<: *controller-build
+    container_name: e2e-controller-c-processor-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      router:
+        condition: service_healthy
+    environment:
+      <<: *site-c-env
+    entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "--concurrency=1", "-Q", "starfish.processor"]
+    volumes:
+      - e2e_controller_c:/starfish-controller/local
+
+volumes:
+  e2e_postgres_data: {}
+  e2e_redis_data: {}
+  e2e_router_artifacts: {}
+  e2e_controller_a: {}
+  e2e_controller_b: {}
+  e2e_controller_c: {}

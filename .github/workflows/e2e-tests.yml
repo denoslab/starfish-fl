@@ -1,0 +1,96 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build Docker images ──────────────────────────────────────────────────
+
+      - name: Build router image
+        run: docker build -t starfish-router router/
+
+      - name: Build controller image
+        run: docker build -t starfish-controller controller/
+
+      # ── Start the E2E stack ──────────────────────────────────────────────────
+
+      - name: Start E2E stack
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml up -d
+
+      # ── Wait for services to be healthy ─────────────────────────────────────
+
+      - name: Wait for router to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/starfish/api/v1/sites/ \
+                 -u admin:1234 > /dev/null 2>&1; then
+              echo "Router is ready"
+              exit 0
+            fi
+            echo "Waiting for router ($i/30)..."
+            sleep 5
+          done
+          echo "Router did not become ready in time"
+          docker compose -f workbench/docker-compose.e2e.yml logs router
+          exit 1
+
+      - name: Wait for all three controllers to be ready
+        run: |
+          for port in 8001 8002 8003; do
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:${port}/controller/ > /dev/null 2>&1; then
+                echo "Controller on port $port is ready"
+                break
+              fi
+              echo "Waiting for controller:$port ($i/20)..."
+              sleep 5
+              if [ $i -eq 20 ]; then
+                echo "Controller on port $port did not become ready"
+                docker compose -f workbench/docker-compose.e2e.yml logs
+                exit 1
+              fi
+            done
+          done
+
+      # ── Install test dependencies ────────────────────────────────────────────
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install E2E test dependencies
+        working-directory: e2e
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      # ── Run E2E tests ────────────────────────────────────────────────────────
+
+      - name: Run E2E tests
+        working-directory: e2e
+        run: pytest test_fl_workflow.py -v --timeout=300
+
+      # ── Collect logs on failure ──────────────────────────────────────────────
+
+      - name: Collect service logs on failure
+        if: failure()
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml logs --tail=200
+
+      # ── Tear down ────────────────────────────────────────────────────────────
+
+      - name: Tear down E2E stack
+        if: always()
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml down -v

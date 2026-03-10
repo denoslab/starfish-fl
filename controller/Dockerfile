@@ -18,6 +18,7 @@ RUN apt-get update \
     libpq-dev \
     dos2unix \
     r-base-core \
+    r-recommended \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages required by R-based tasks

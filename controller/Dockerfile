@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 # Disable Poetry virtualenv creation to install directly in system python
 ENV POETRY_VIRTUALENVS_CREATE=false
 
-# Install runtime dependencies
+# Install runtime dependencies (including R for R-based FL tasks)
 # python:3.10 includes gcc, python headers, etc.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -17,7 +17,11 @@ RUN apt-get update \
     netcat-traditional \
     libpq-dev \
     dos2unix \
+    r-base-core \
     && rm -rf /var/lib/apt/lists/*
+
+# Install R packages required by R-based tasks
+RUN Rscript -e "install.packages('jsonlite', repos='https://cloud.r-project.org')"
 
 # Install Poetry first to leverage cache
 RUN pip3 install --no-cache-dir poetry

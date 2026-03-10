@@ -450,6 +450,77 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 ]
 ```
 
+### Multiple Imputation (MICE)
+
+**Description:** Multiple Imputation by Chained Equations for handling missing data in federated analysis
+
+**Use Case:** Real-world clinical and epidemiological data nearly always has missing values. MICE creates multiple plausible imputed datasets, fits a linear regression on each, and pools results using Rubin's rules. Essential for any multi-site study with incomplete data.
+
+**File Location:** `starfish/controller/tasks/multiple_imputation/`
+
+**Dataset Requirements:**
+- CSV file (no header row)
+- All columns except the last: feature columns (may contain missing values as empty cells/NaN)
+- Last column: continuous outcome variable
+- Missing values represented as empty cells in CSV
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "MultipleImputation",
+    "config": {
+      "total_round": 1,
+      "current_round": 1,
+      "m": 5,
+      "max_iter": 10
+    }
+  }
+]
+```
+
+**Config Parameters:**
+- **m**: Number of imputations (default: 5). More imputations reduce Monte Carlo error.
+- **max_iter**: Maximum MICE iterations per imputation (default: 10)
+
+**Statistical Outputs:**
+- Pooled coefficients with standard errors, t-values, p-values, 95% CI
+- Within-imputation and between-imputation variance components
+- Adjusted degrees of freedom (Barnard-Rubin)
+- Missingness fractions per variable
+- Number of complete cases
+
+**Aggregation:** Inverse-variance weighted meta-analysis of pooled coefficients across sites, with between-site variance incorporated via Rubin's rules
+
+### R Multiple Imputation (MICE)
+
+**Description:** Multiple Imputation using R's `mice` package
+
+**Use Case:** Same as Multiple Imputation above, for researchers who prefer R. Uses `mice::mice()` for imputation, `lm()` for analysis, and `mice::pool()` for Rubin's rules.
+
+**File Location:** `starfish/controller/tasks/r_multiple_imputation/`
+
+**Dataset Requirements:** Same as Multiple Imputation above
+
+**R Dependencies:** `mice`, `jsonlite` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RMultipleImputation",
+    "config": {
+      "total_round": 1,
+      "current_round": 1,
+      "m": 5,
+      "max_iter": 10
+    }
+  }
+]
+```
+
 ## Writing R-Based Tasks
 
 The framework supports FL tasks written in R via the `AbstractRTask` base class. This allows researchers to use existing R algorithms within the federated learning pipeline.
@@ -528,6 +599,8 @@ class RMyModel(AbstractRTask):
 - **n_group_columns**: (ANCOVA only) Number of columns representing group membership
 - **vcp_p**: (Mixed Effects Logistic Regression only) Prior SD for variance components (default: 1.0)
 - **fe_p**: (Mixed Effects Logistic Regression only) Prior SD for fixed effects (default: 2.0)
+- **m**: (Multiple Imputation only) Number of imputed datasets to create (default: 5)
+- **max_iter**: (Multiple Imputation only) Max MICE iterations per imputation (default: 10)
 - **description**: Optional description of what this task does
 
 ## Step-by-Step: Creating a Project

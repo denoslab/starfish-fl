@@ -237,6 +237,11 @@ def test_fl_workflow(pages, base_a, base_b, base_c, fixtures_dir):
         )
 
     # ── Step 8: Download artifacts (coordinator) ──────────────────────────────
+    # The download button triggers an AJAX call that returns base64-encoded
+    # content, then JS creates a temporary <a> with a data: URL to initiate
+    # the download.  Playwright's expect_download is unreliable with
+    # programmatic data-URL downloads, so we intercept the AJAX response
+    # instead and verify the server returned valid artifact data.
 
     page_a.goto(
         f"{base_a}/controller/runs/detail/{batch}/{project_id}/{site_a_id}/"
@@ -245,9 +250,19 @@ def test_fl_workflow(pages, base_a, base_b, base_c, fixtures_dir):
 
     download_btn = page_a.locator('[id^="downloadButton-"]').first
     if download_btn.count() > 0:
-        with page_a.expect_download(timeout=30_000) as dl_info:
+        with page_a.expect_response(
+            lambda r: "/controller/runs/action/" in r.url,
+            timeout=30_000,
+        ) as resp_info:
             download_btn.click()
-        download = dl_info.value
-        assert download.suggested_filename, (
-            "Step 8 – Download: expected a filename in the downloaded artifacts"
+        resp = resp_info.value
+        assert resp.ok, (
+            f"Step 8 – Download: expected 200 OK, got {resp.status}"
+        )
+        body = resp.json()
+        assert body.get("success"), (
+            "Step 8 – Download: server response did not indicate success"
+        )
+        assert body.get("content"), (
+            "Step 8 – Download: expected non-empty artifact content"
         )

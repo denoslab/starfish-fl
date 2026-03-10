@@ -39,8 +39,11 @@ for (g in groups) {
     survival_probability  = fit$surv,
     ci_lower              = fit$lower,
     ci_upper              = fit$upper,
-    median_survival       = if (is.na(fit$table["median"])) NULL
-                            else jsonlite::unbox(as.numeric(fit$table["median"])),
+    median_survival       = tryCatch({
+      med <- fit$table["median"]
+      if (length(med) == 0 || is.na(med)) NULL
+      else jsonlite::unbox(as.numeric(med))
+    }, error = function(e) NULL),
     n_observations        = jsonlite::unbox(sum(mask)),
     n_events              = jsonlite::unbox(sum(event[mask]))
   )

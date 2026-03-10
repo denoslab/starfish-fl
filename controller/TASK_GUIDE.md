@@ -186,6 +186,125 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 
 **Example Dataset:** `examples/mixed_effects_logistic_sample.csv`
 
+### Cox Proportional Hazards
+
+**Description:** Time-to-event analysis using Cox Proportional Hazards regression
+
+**Use Case:** Clinical trials, oncology, cardiology — any study with time-to-event endpoints (survival, disease progression, treatment failure)
+
+**File Location:** `starfish/controller/tasks/cox_proportional_hazards/`
+
+**Dataset Requirements:** CSV with features in all columns except the last two. Second-to-last column is time, last column is event indicator (1=event, 0=censored).
+
+**Python Library:** `lifelines.CoxPHFitter`
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "CoxProportionalHazards",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Coefficients (log-hazard ratios) with standard errors, p-values, 95% CI
+- Hazard ratios (exponentiated coefficients)
+- Concordance index (C-statistic)
+
+**Aggregation:** Inverse-variance weighted meta-analysis of log-hazard ratios
+
+### R Cox Proportional Hazards
+
+**Description:** Time-to-event analysis using R's `survival::coxph()`
+
+**Use Case:** Same as Cox PH above, for researchers who prefer R
+
+**File Location:** `starfish/controller/tasks/r_cox_proportional_hazards/`
+
+**Dataset Requirements:** Same as Cox PH above
+
+**R Dependencies:** `survival` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RCoxProportionalHazards",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+### Kaplan-Meier
+
+**Description:** Non-parametric survival estimation with log-rank test for group comparisons
+
+**Use Case:** Visualizing survival curves, comparing survival between treatment groups, preliminary analysis before Cox regression
+
+**File Location:** `starfish/controller/tasks/kaplan_meier/`
+
+**Dataset Requirements:** CSV with group column (1st), feature columns (middle), time column (2nd-to-last), event column (last, 1=event, 0=censored)
+
+**Python Library:** `lifelines.KaplanMeierFitter`, `lifelines.statistics.logrank_test`
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "KaplanMeier",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Survival function (time points + probabilities) per group
+- Median survival time with confidence intervals
+- Log-rank test statistic and p-value (for 2-group comparisons)
+- At-risk tables for federated pooling
+
+**Aggregation:** Pool at-risk tables across sites, recompute KM estimate from combined counts
+
+### R Kaplan-Meier
+
+**Description:** Non-parametric survival estimation using R's `survival::survfit()` and `survdiff()`
+
+**Use Case:** Same as Kaplan-Meier above, for researchers who prefer R
+
+**File Location:** `starfish/controller/tasks/r_kaplan_meier/`
+
+**Dataset Requirements:** Same as Kaplan-Meier above
+
+**R Dependencies:** `survival` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RKaplanMeier",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
 ### R Logistic Regression
 
 **Description:** Binary classification using logistic regression implemented in R (`glm(family=binomial)`)

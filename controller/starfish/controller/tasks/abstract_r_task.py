@@ -44,8 +44,9 @@ class AbstractRTask(AbstractTask, ABC):
             self.logger.debug("R stderr: {}".format(result.stderr))
         if result.returncode != 0:
             self.logger.warning(
-                "R script {} failed with exit code {}".format(
-                    script_name, result.returncode))
+                "R script {} failed with exit code {}: {}".format(
+                    script_name, result.returncode,
+                    result.stderr.strip() if result.stderr else '(no stderr)'))
             return False
         return True
 

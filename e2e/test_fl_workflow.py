@@ -251,7 +251,7 @@ def test_fl_workflow(pages, base_a, base_b, base_c, fixtures_dir):
     download_btn = page_a.locator('[id^="downloadButton-"]').first
     if download_btn.count() > 0:
         with page_a.expect_response(
-            lambda r: "/controller/runs/action/" in r.url,
+            lambda r: "/controller/runs/action/" in r.url and r.status == 200,
             timeout=30_000,
         ) as resp_info:
             download_btn.click()

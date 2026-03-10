@@ -23,6 +23,8 @@ openml = "^0.14.1"
 # for statistical models
 statsmodels = ">=0.14.0"
 scipy = ">=1.11.0"
+# for survival analysis
+lifelines = ">=0.27.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"

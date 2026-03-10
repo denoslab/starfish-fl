@@ -19,6 +19,14 @@ jobs:
             file: test_fl_workflow.py
           - name: R FL
             file: test_r_fl_workflow.py
+          - name: Cox PH
+            file: test_cox_ph_workflow.py
+          - name: R Cox PH
+            file: test_r_cox_ph_workflow.py
+          - name: Kaplan-Meier
+            file: test_kaplan_meier_workflow.py
+          - name: R Kaplan-Meier
+            file: test_r_kaplan_meier_workflow.py
 
     name: "e2e (${{ matrix.test.name }})"
 

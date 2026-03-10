@@ -39,9 +39,9 @@ avg_coef      <- coef_sum / total_samples
 avg_intercept <- intercept_sum / total_samples
 
 result <- list(
-  sample_size = as.integer(total_samples),
+  sample_size = jsonlite::unbox(as.integer(total_samples)),
   coef_       = list(as.numeric(avg_coef)),
-  intercept_  = as.numeric(avg_intercept)
+  intercept_  = I(as.numeric(avg_intercept))
 )
 
-write(toJSON(result, auto_unbox = FALSE, digits = 10), output_path)
+write(toJSON(result, digits = 10), output_path)

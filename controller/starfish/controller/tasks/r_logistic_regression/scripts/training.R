@@ -88,15 +88,15 @@ compute_auc <- function(probs, labels) {
 auc <- compute_auc(prob_test, y_test)
 
 result <- list(
-  sample_size          = as.integer(sample_size),
+  sample_size          = jsonlite::unbox(as.integer(sample_size)),
   coef_                = list(coef_vals),
-  intercept_           = c(intercept),
-  metric_acc           = accuracy,
-  metric_auc           = auc,
-  metric_sensitivity   = sensitivity,
-  metric_specificity   = specificity,
-  metric_npv           = npv,
-  metric_ppv           = ppv
+  intercept_           = I(c(intercept)),
+  metric_acc           = jsonlite::unbox(accuracy),
+  metric_auc           = jsonlite::unbox(auc),
+  metric_sensitivity   = jsonlite::unbox(sensitivity),
+  metric_specificity   = jsonlite::unbox(specificity),
+  metric_npv           = jsonlite::unbox(npv),
+  metric_ppv           = jsonlite::unbox(ppv)
 )
 
-write(toJSON(result, auto_unbox = FALSE, digits = 10), output_path)
+write(toJSON(result, digits = 10), output_path)

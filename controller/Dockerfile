@@ -19,6 +19,7 @@ RUN apt-get update \
     dos2unix \
     r-base-core \
     r-recommended \
+    gfortran \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages required by R-based tasks

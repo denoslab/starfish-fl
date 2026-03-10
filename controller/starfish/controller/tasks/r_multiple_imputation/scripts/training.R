@@ -45,7 +45,11 @@ imp <- mice(df, m = m, maxit = max_iter, printFlag = FALSE, seed = 42)
 
 # Fit linear regression on each imputed dataset and pool
 formula <- as.formula(paste(outcome_name, "~", paste(feature_names, collapse = " + ")))
-fit <- with(imp, lm(formula))
+analyses <- lapply(seq_len(m), function(i) {
+  d <- complete(imp, i)
+  lm(formula, data = d)
+})
+fit <- as.mira(analyses)
 pooled <- pool(fit)
 s <- summary(pooled, conf.int = TRUE)
 

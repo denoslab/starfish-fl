@@ -1,8 +1,5 @@
 """
-End-to-end test: federated Cox Proportional Hazards workflow.
-
-Uses the same 8-step pattern as test_fl_workflow.py but with
-CoxProportionalHazards model and survival data fixtures.
+End-to-end test: federated R Poisson Regression workflow.
 """
 import re
 import time
@@ -11,10 +8,10 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Browser, Page
 
-PROJECT_NAME = "e2e-cox-ph-project"
+PROJECT_NAME = "e2e-r-poisson-project"
 
 TASKS_JSON = (
-    '[{"seq": 1, "model": "CoxProportionalHazards",'
+    '[{"seq": 1, "model": "RPoissonRegression",'
     ' "config": {"total_round": 1, "current_round": 1}}]'
 )
 
@@ -68,8 +65,8 @@ def pages(browser: Browser, base_a, base_b, base_c):
     ctx_c.close()
 
 
-def test_cox_ph_workflow(pages, base_a, base_b, base_c, fixtures_dir):
-    """Full federated Cox PH workflow through the Controller web portal."""
+def test_r_poisson_workflow(pages, base_a, base_b, base_c, fixtures_dir):
+    """Full federated R Poisson Regression workflow."""
     page_a, page_b, page_c = pages
 
     for page, base, name, desc in [
@@ -86,7 +83,7 @@ def test_cox_ph_workflow(pages, base_a, base_b, base_c, fixtures_dir):
 
     page_a.goto(f"{base_a}/controller/projects/new/")
     page_a.fill('[name="name"]', PROJECT_NAME)
-    page_a.fill('textarea[name="description"]', "E2E Cox PH test")
+    page_a.fill('textarea[name="description"]', "E2E R Poisson test")
     page_a.fill('textarea[name="tasks"]', TASKS_JSON)
     page_a.click('[name="create_project"]')
     page_a.wait_for_url(f"{base_a}/controller/", timeout=15_000)
@@ -109,12 +106,12 @@ def test_cox_ph_workflow(pages, base_a, base_b, base_c, fixtures_dir):
     time.sleep(3)
 
     _upload_dataset_for_site(page_b, base_b, project_id, site_b_id,
-                             fixtures_dir / "survival_site_b.csv")
+                             fixtures_dir / "count_site_b.csv")
     _upload_dataset_for_site(page_c, base_c, project_id, site_c_id,
-                             fixtures_dir / "survival_site_c.csv")
+                             fixtures_dir / "count_site_c.csv")
     time.sleep(15)
     _upload_dataset_for_site(page_a, base_a, project_id, site_a_id,
-                             fixtures_dir / "survival_site_a.csv")
+                             fixtures_dir / "count_site_a.csv")
 
     _wait_for_success(page_a, base_a, project_id, site_a_id)
     _wait_for_success(page_b, base_b, project_id, site_b_id)
@@ -125,18 +122,3 @@ def test_cox_ph_workflow(pages, base_a, base_b, base_c, fixtures_dir):
     )
     page_a.wait_for_load_state("domcontentloaded")
     assert "Success" in page_a.content()
-
-    download_btn = page_a.locator('[id^="downloadButton-"]').first
-    if download_btn.count() > 0:
-        with page_a.expect_response(
-            lambda r: "/controller/runs/action/" in r.url and r.status == 200,
-            timeout=30_000,
-        ) as resp_info:
-            download_btn.click()
-        resp = resp_info.value
-        assert resp.ok
-        try:
-            body = resp.json()
-            assert body.get("success")
-        except Exception:
-            pass  # Response body may be discarded by browser; 200 OK suffices

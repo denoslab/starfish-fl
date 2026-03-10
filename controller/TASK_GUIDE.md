@@ -335,6 +335,121 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 - Coefficients and intercept (from `glm`)
 - Accuracy, AUC, Sensitivity, Specificity, NPV, PPV
 
+### Poisson Regression
+
+**Description:** Count data regression using Poisson GLM for modeling event rates
+
+**Use Case:** Modeling count outcomes (e.g., number of hospital visits, disease incidence rates, adverse events per exposure time)
+
+**File Location:** `starfish/controller/tasks/poisson_regression/`
+
+**Dataset Requirements:** CSV with features in all columns except last two. Second-to-last column is offset (log-exposure), last column is count (non-negative integer).
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "PoissonRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Coefficients (log-rate ratios) with standard errors, z-values, p-values, 95% CI
+- Rate Ratios (exponentiated coefficients)
+- Deviance, Pearson Chi-squared, AIC
+
+**Aggregation:** Inverse-variance weighted meta-analysis of log-rate ratios
+
+### R Poisson Regression
+
+**Description:** Count data regression using R's `glm(family=poisson)`
+
+**Use Case:** Same as Poisson above, for researchers who prefer R
+
+**File Location:** `starfish/controller/tasks/r_poisson_regression/`
+
+**Dataset Requirements:** Same as Poisson above
+
+**R Dependencies:** `jsonlite` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RPoissonRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+### Negative Binomial Regression
+
+**Description:** Overdispersed count data regression using Negative Binomial model
+
+**Use Case:** When count data shows more variance than Poisson assumes (overdispersion), common in healthcare event counts, insurance claims, ecological abundance data
+
+**File Location:** `starfish/controller/tasks/negative_binomial_regression/`
+
+**Dataset Requirements:** Same as Poisson (features, offset, count)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "NegativeBinomialRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Coefficients (log-rate ratios) with standard errors, z-values, p-values, 95% CI
+- Rate Ratios (exponentiated coefficients)
+- Dispersion parameter (alpha)
+- Log-likelihood, AIC
+
+**Aggregation:** Inverse-variance weighted meta-analysis of log-rate ratios; pool dispersion parameter via weighted average
+
+### R Negative Binomial Regression
+
+**Description:** Overdispersed count data regression using R's `MASS::glm.nb()`
+
+**Use Case:** Same as Negative Binomial above, for researchers who prefer R
+
+**File Location:** `starfish/controller/tasks/r_negative_binomial_regression/`
+
+**Dataset Requirements:** Same as Poisson/NB above
+
+**R Dependencies:** `MASS` (included with R), `jsonlite`
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RNegativeBinomialRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
 ## Writing R-Based Tasks
 
 The framework supports FL tasks written in R via the `AbstractRTask` base class. This allows researchers to use existing R algorithms within the federated learning pipeline.

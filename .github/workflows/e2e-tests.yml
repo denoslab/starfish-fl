@@ -7,9 +7,35 @@ on:
     branches: [main]
 
 jobs:
+  # ── Build Docker images once and share across test jobs ───────────────────
+  build-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build router image
+        run: docker build -t starfish-router router/
+
+      - name: Build controller image
+        run: docker build -t starfish-controller controller/
+
+      - name: Save Docker images
+        run: docker save starfish-router starfish-controller | gzip > /tmp/e2e-images.tar.gz
+
+      - name: Upload Docker images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-docker-images
+          path: /tmp/e2e-images.tar.gz
+          retention-days: 1
+
+  # ── Run E2E tests in parallel using pre-built images ──────────────────────
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    needs: build-images
 
     strategy:
       fail-fast: false
@@ -33,21 +59,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Build Docker images ──────────────────────────────────────────────────
+      # ── Load pre-built Docker images ──────────────────────────────────────
 
-      - name: Build router image
-        run: docker build -t starfish-router router/
+      - name: Download Docker images artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-docker-images
+          path: /tmp
 
-      - name: Build controller image
-        run: docker build -t starfish-controller controller/
+      - name: Load Docker images
+        run: gunzip -c /tmp/e2e-images.tar.gz | docker load
 
-      # ── Start the E2E stack ──────────────────────────────────────────────────
+      # ── Start the E2E stack ───────────────────────────────────────────────
 
       - name: Start E2E stack
         working-directory: workbench
         run: docker compose -f docker-compose.e2e.yml up -d
 
-      # ── Wait for services to be healthy ─────────────────────────────────────
+      # ── Wait for services to be healthy ───────────────────────────────────
 
       - name: Wait for router to be ready
         run: |
@@ -82,7 +111,7 @@ jobs:
             done
           done
 
-      # ── Install test dependencies ────────────────────────────────────────────
+      # ── Install test dependencies ─────────────────────────────────────────
 
       - uses: actions/setup-python@v5
         with:
@@ -94,20 +123,20 @@ jobs:
           pip install -r requirements.txt
           playwright install chromium --with-deps
 
-      # ── Run E2E tests ────────────────────────────────────────────────────────
+      # ── Run E2E tests ─────────────────────────────────────────────────────
 
       - name: Run E2E tests
         working-directory: e2e
         run: pytest ${{ matrix.test.file }} -v --timeout=300
 
-      # ── Collect logs on failure ──────────────────────────────────────────────
+      # ── Collect logs on failure ────────────────────────────────────────────
 
       - name: Collect service logs on failure
         if: failure()
         working-directory: workbench
         run: docker compose -f docker-compose.e2e.yml logs --tail=200
 
-      # ── Tear down ────────────────────────────────────────────────────────────
+      # ── Tear down ─────────────────────────────────────────────────────────
 
       - name: Tear down E2E stack
         if: always()

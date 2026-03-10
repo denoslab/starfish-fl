@@ -186,6 +186,99 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 
 **Example Dataset:** `examples/mixed_effects_logistic_sample.csv`
 
+### R Logistic Regression
+
+**Description:** Binary classification using logistic regression implemented in R (`glm(family=binomial)`)
+
+**Use Case:** Researchers with R/biostatistics backgrounds who want to leverage R's statistical ecosystem for federated binary classification
+
+**File Location:** `starfish/controller/tasks/r_logistic_regression/`
+
+**Dataset Requirements:** CSV with features in all columns except last, binary label (0 or 1) in last column
+
+**R Dependencies:** `jsonlite` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RLogisticRegression",
+    "config": {
+      "total_round": 5,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Coefficients and intercept (from `glm`)
+- Accuracy, AUC, Sensitivity, Specificity, NPV, PPV
+
+## Writing R-Based Tasks
+
+The framework supports FL tasks written in R via the `AbstractRTask` base class. This allows researchers to use existing R algorithms within the federated learning pipeline.
+
+### Architecture
+
+R tasks use a Python-R bridge:
+1. A Python wrapper class (extending `AbstractRTask`) handles the FL lifecycle
+2. Core ML logic lives in R scripts invoked via `Rscript` subprocess
+3. Communication between Python and R uses JSON files
+
+### Creating a New R Task
+
+1. Create a directory under `starfish/controller/tasks/` named with the snake_case version of your class name (e.g., `r_my_model/`)
+2. Create three R scripts in a `scripts/` subdirectory:
+   - `prepare_data.R` — validate data, return `{"valid": true, "sample_size": N}`
+   - `training.R` — fit model, return coefficients and metrics as JSON
+   - `aggregate.R` — aggregate mid-artifacts from all sites, return averaged model
+3. Create `task.py` with a class extending `AbstractRTask` that sets `r_script_dir`
+4. Create an empty `__init__.py`
+
+### R Script Interface
+
+Each R script receives two command-line arguments:
+- `input.json` — input data (config, data paths, previous model, mid-artifacts)
+- `output.json` — path where the script must write its JSON result
+
+**Input JSON structure:**
+```json
+{
+  "run_id": 42,
+  "data_path": "/path/to/dataset",
+  "config": {"total_round": 5, "current_round": 1},
+  "sample_size": 200,
+  "previous_model": null,
+  "mid_artifacts": null
+}
+```
+
+**Output JSON structure (training):**
+```json
+{
+  "sample_size": 200,
+  "coef_": [[1.2, -0.5, 0.8]],
+  "intercept_": [0.3],
+  "metric_acc": 0.85,
+  "metric_auc": 0.88
+}
+```
+
+### Example Task Class
+
+```python
+import os
+from starfish.controller.tasks.abstract_r_task import AbstractRTask
+
+class RMyModel(AbstractRTask):
+    def __init__(self, run):
+        self.r_script_dir = os.path.join(
+            os.path.dirname(__file__), 'scripts')
+        super().__init__(run)
+```
+
 ## Configuration Parameters Explained
 
 ### Required Parameters

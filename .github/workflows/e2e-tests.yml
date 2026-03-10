@@ -15,15 +15,15 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          - name: Python FL
+          - name: Python Logistic Regression
             file: test_fl_workflow.py
-          - name: R FL
+          - name: R Logistic Regression
             file: test_r_fl_workflow.py
-          - name: Cox PH
+          - name: Python Cox PH
             file: test_cox_ph_workflow.py
           - name: R Cox PH
             file: test_r_cox_ph_workflow.py
-          - name: Kaplan-Meier
+          - name: Python Kaplan-Meier
             file: test_kaplan_meier_workflow.py
           - name: R Kaplan-Meier
             file: test_r_kaplan_meier_workflow.py

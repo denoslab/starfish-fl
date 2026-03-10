@@ -11,6 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - name: Python FL
+            file: test_fl_workflow.py
+          - name: R FL
+            file: test_r_fl_workflow.py
+
+    name: "e2e (${{ matrix.test.name }})"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +90,7 @@ jobs:
 
       - name: Run E2E tests
         working-directory: e2e
-        run: pytest test_fl_workflow.py -v --timeout=300
+        run: pytest ${{ matrix.test.file }} -v --timeout=300
 
       # ── Collect logs on failure ──────────────────────────────────────────────
 

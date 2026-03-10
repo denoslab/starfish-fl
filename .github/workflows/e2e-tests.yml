@@ -53,6 +53,14 @@ jobs:
             file: test_kaplan_meier_workflow.py
           - name: R Kaplan-Meier
             file: test_r_kaplan_meier_workflow.py
+          - name: Python Poisson
+            file: test_poisson_workflow.py
+          - name: R Poisson
+            file: test_r_poisson_workflow.py
+          - name: Python Negative Binomial
+            file: test_negative_binomial_workflow.py
+          - name: R Negative Binomial
+            file: test_r_negative_binomial_workflow.py
 
     name: "e2e (${{ matrix.test.name }})"
 

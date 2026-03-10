@@ -48,7 +48,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends r-base-core r-recommended
-          sudo Rscript -e "install.packages(c('jsonlite', 'survival'), repos='https://cloud.r-project.org')"
+          sudo Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), repos='https://cloud.r-project.org')"
 
       - name: Run tests
         run: poetry run python3 manage.py test

@@ -26,6 +26,13 @@ GitHub Actions automatically tests and deploys code on every push/pull request.
 3. **Site Model** - Tests site creation
 4. **Project Model** - Tests project creation
 
+## Controller CI
+
+The controller CI pipeline (`.github/workflows/controller-tests.yml`) additionally:
+- Installs R (`r-base-core`, `r-recommended`) and system libraries (`gfortran`, `libnlopt-dev`, `cmake`, `liblapack-dev`, `libblas-dev`)
+- Installs R packages: `jsonlite`, `survival`, `mice`
+- Runs all controller tests including R-based task tests
+
 ## Running Tests Locally
 
 ```bash

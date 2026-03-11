@@ -92,6 +92,8 @@ This method gives you more control but requires manual setup of Redis and Python
 - Python 3.10.10
 - Redis server
 - [Poetry](https://python-poetry.org/) for dependency management
+- R 4.x (required for R-based tasks) with packages: `jsonlite`, `survival`, `mice`
+- System libraries for R package compilation: `gfortran`, `libnlopt-dev`, `cmake`, `liblapack-dev`, `libblas-dev`
 - [pyenv](https://github.com/pyenv/pyenv) (recommended for Python version management on macOS/Linux)
 - [pyenv-win](https://github.com/pyenv-win/pyenv-win) (recommended for Python version management on Windows)
 
@@ -258,6 +260,36 @@ deactivate
 ```powershell
 deactivate
 ```
+
+## R Task Support
+
+The controller supports FL tasks implemented in R via the `AbstractRTask` base class. R tasks use a Python-R bridge where:
+- A Python wrapper class handles the FL lifecycle (data loading, artifact upload/download)
+- Core ML logic lives in R scripts (`scripts/prepare_data.R`, `training.R`, `aggregate.R`)
+- Communication between Python and R uses temporary JSON files
+- R scripts are invoked via `Rscript --vanilla` subprocess
+
+Available R tasks: `RLogisticRegression`, `RCoxProportionalHazards`, `RKaplanMeier`, `RPoissonRegression`, `RNegativeBinomialRegression`, `RMultipleImputation`
+
+### Installing R Dependencies (Local Development)
+
+```shell
+# Ubuntu/Debian
+sudo apt-get install -y r-base-core r-recommended gfortran libnlopt-dev cmake liblapack-dev libblas-dev
+sudo Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), repos='https://cloud.r-project.org')"
+
+# macOS
+brew install r
+Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), repos='https://cloud.r-project.org')"
+```
+
+R dependencies are automatically installed in the Docker image.
+
+## Model Diagnostics
+
+All regression tasks include a `diagnostics` sub-object in their mid-artifact output with privacy-safe summary statistics. The Python diagnostics module is at `starfish/controller/tasks/diagnostics.py` and the R equivalent at `starfish/controller/tasks/r_diagnostics_utils.R`.
+
+See [TASK_GUIDE.md](TASK_GUIDE.md) for the full diagnostic field reference.
 
 ## Development Tasks
 

@@ -103,7 +103,7 @@ Run state machine: `STANDBY → PREPARING → RUNNING → PENDING_SUCCESS → PE
 
 ### FL Task Execution Flow (Controller)
 
-Each ML task inherits from `AbstractTask` (`controller/starfish/controller/tasks/abstract_task.py`). Task lifecycle methods map to Run states:
+Each ML task inherits from `AbstractTask` (Python) or `AbstractRTask` (R). Task lifecycle methods map to Run states:
 1. `standby()` → validate previous round, notify router
 2. `preparing()` → load/validate data (`prepare_data()`)
 3. `running()` → execute training (`training()`)
@@ -115,10 +115,25 @@ The Controller uses two Celery queues: `starfish.run` (polling/heartbeat) and `s
 
 ### Adding a New ML Task
 
-1. Create a new file in `controller/starfish/controller/tasks/` (or `tasks/stats_models/` for statistical models)
+**Python tasks:**
+1. Create a new directory in `controller/starfish/controller/tasks/<task_name>/`
 2. Subclass `AbstractTask` and implement: `validate()`, `prepare_data()`, `training()`, `do_aggregate()`
 3. Register the task class in `controller/starfish/controller/tasks/__init__.py`
-4. Document the task config schema in `controller/TASK_GUIDE.md`
+4. Add diagnostics via `from starfish.controller.tasks.diagnostics import ...`
+5. Document the task config schema in `controller/TASK_GUIDE.md`
+
+**R tasks:**
+1. Create a directory `controller/starfish/controller/tasks/r_<task_name>/` with a `scripts/` subdirectory
+2. Implement `prepare_data.R`, `training.R`, `aggregate.R` in `scripts/`
+3. Source shared diagnostics: `source(file.path(dirname(this_script), "..", "..", "r_diagnostics_utils.R"))`
+4. Create `task.py` extending `AbstractRTask` (sets `r_script_dir`)
+5. See `controller/TASK_GUIDE.md` "Writing R-Based Tasks" section for details
+
+**Key files:**
+- `controller/starfish/controller/tasks/abstract_task.py` — Python base class
+- `controller/starfish/controller/tasks/abstract_r_task.py` — R task base class (Python-R bridge)
+- `controller/starfish/controller/tasks/diagnostics.py` — Python diagnostics utilities (VIF, residuals, Cook's D, etc.)
+- `controller/starfish/controller/tasks/r_diagnostics_utils.R` — R diagnostics utilities
 
 ### Router API
 
@@ -147,5 +162,7 @@ Each component uses a `.env` file (copy from `.env.example`):
 - Python 3.10.10, Django 4.2, Poetry for dependency management
 - Controller DB: SQLite; Router DB: PostgreSQL
 - Task queue: Celery + Redis
-- ML: scikit-learn, numpy, pandas, statsmodels, scipy
+- Python ML: scikit-learn, numpy, pandas, statsmodels, scipy, lifelines
+- R runtime: R 4.x with `jsonlite`, `survival`, `mice`, `MASS`
+- R system deps (for package compilation): `gfortran`, `libnlopt-dev`, `cmake`, `liblapack-dev`, `libblas-dev`
 - Router state machine: `django-fsm`

@@ -6,6 +6,10 @@
 library(jsonlite)
 library(MASS)
 
+# Source shared diagnostics utilities
+this_script <- sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))
+source(file.path(dirname(this_script), "..", "..", "r_diagnostics_utils.R"))
+
 args <- commandArgs(trailingOnly = TRUE)
 input_path  <- args[1]
 output_path <- args[2]
@@ -51,6 +55,10 @@ aic_val <- jsonlite::unbox(as.numeric(AIC(model)))
 
 coef_names <- c("const", feature_names)
 
+# Diagnostics
+diag <- glm_diagnostics(model, as.matrix(features))
+od <- overdispersion_test(model)
+
 result <- list(
   sample_size   = jsonlite::unbox(as.integer(sample_size)),
   coef          = coef_vals,
@@ -63,7 +71,15 @@ result <- list(
   alpha         = alpha,
   llf           = llf,
   aic           = aic_val,
-  feature_names = coef_names
+  feature_names = coef_names,
+  diagnostics   = list(
+    vif                       = diag$vif,
+    deviance_residual_summary = diag$deviance_residual_summary,
+    pearson_residual_summary  = diag$pearson_residual_summary,
+    cooks_distance            = diag$cooks_distance,
+    overdispersion            = od,
+    prediction_intervals      = diag$prediction_intervals
+  )
 )
 
 write(toJSON(result, digits = 10), output_path)

@@ -11,6 +11,7 @@ from starfish.controller.file.file_utils import (
     downloaded_artifacts_url
 )
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.diagnostics import cox_diagnostics
 
 warnings.filterwarnings('ignore')
 
@@ -104,6 +105,9 @@ class CoxProportionalHazards(AbstractTask):
         ci_upper = summary['coef upper 95%'].values.tolist()
         concordance = self.cph.concordance_index_
 
+        # Diagnostics
+        diagnostics = cox_diagnostics(self.cph, self.train_df)
+
         return {
             'sample_size': self.sample_size,
             'coef': coef,
@@ -114,6 +118,7 @@ class CoxProportionalHazards(AbstractTask):
             'ci_upper': ci_upper,
             'concordance_index': concordance,
             'feature_names': list(self.cph.params_.index),
+            'diagnostics': diagnostics,
         }
 
     def do_aggregate(self) -> bool:

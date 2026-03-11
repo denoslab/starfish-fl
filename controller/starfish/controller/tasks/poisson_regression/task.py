@@ -11,6 +11,7 @@ from starfish.controller.file.file_utils import (
     downloaded_artifacts_url
 )
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.diagnostics import glm_diagnostics
 
 warnings.filterwarnings('ignore')
 
@@ -114,6 +115,9 @@ class PoissonRegression(AbstractTask):
         feature_names = ['const'] + [
             'x{}'.format(i) for i in range(n_features - 1)]
 
+        # Diagnostics
+        diagnostics = glm_diagnostics(self.X, self.y, result)
+
         return {
             'sample_size': self.sample_size,
             'coef': coef,
@@ -127,6 +131,7 @@ class PoissonRegression(AbstractTask):
             'pearson_chi2': pearson_chi2,
             'aic': aic,
             'feature_names': feature_names,
+            'diagnostics': diagnostics,
         }
 
     def do_aggregate(self) -> bool:

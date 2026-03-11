@@ -7,6 +7,10 @@
 library(jsonlite)
 library(mice)
 
+# Source shared diagnostics utilities
+this_script <- sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))
+source(file.path(dirname(this_script), "..", "..", "r_diagnostics_utils.R"))
+
 args <- commandArgs(trailingOnly = TRUE)
 input_path  <- args[1]
 output_path <- args[2]
@@ -67,6 +71,14 @@ between_var <- as.numeric(pooled$pooled$b)
 
 coef_names <- c("const", feature_names)
 
+# Diagnostics from first imputed dataset
+diag <- list()
+tryCatch({
+  first_complete <- complete(imp, 1)
+  first_model <- lm(formula, data = first_complete)
+  diag <- lm_diagnostics(first_model, as.matrix(first_complete[, feature_names]))
+}, error = function(e) {})
+
 result <- list(
   sample_size           = jsonlite::unbox(as.integer(sample_size)),
   complete_cases        = jsonlite::unbox(as.integer(complete_cases)),
@@ -81,7 +93,8 @@ result <- list(
   ci_upper              = ci_upper,
   df                    = df_vals,
   missingness_fractions = as.numeric(missingness_fractions),
-  feature_names         = coef_names
+  feature_names         = coef_names,
+  diagnostics           = diag
 )
 
 write(toJSON(result, digits = 10), output_path)

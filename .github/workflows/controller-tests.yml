@@ -47,7 +47,7 @@ jobs:
       - name: Install R (for R-based task tests)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends r-base-core r-recommended gfortran libnlopt-dev cmake
+          sudo apt-get install -y --no-install-recommends r-base-core r-recommended gfortran libnlopt-dev cmake liblapack-dev libblas-dev
           sudo Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), repos='https://cloud.r-project.org')"
 
       - name: Run tests

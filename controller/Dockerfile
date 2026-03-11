@@ -20,6 +20,8 @@ RUN apt-get update \
     r-base-core \
     r-recommended \
     gfortran \
+    libnlopt-dev \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages required by R-based tasks

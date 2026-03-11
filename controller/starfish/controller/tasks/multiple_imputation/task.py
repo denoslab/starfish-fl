@@ -13,6 +13,7 @@ from starfish.controller.file.file_utils import (
     downloaded_artifacts_url
 )
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.diagnostics import compute_vif, residual_summary, shapiro_wilk_test
 
 warnings.filterwarnings('ignore')
 
@@ -157,6 +158,25 @@ class MultipleImputation(AbstractTask):
             feature_names = ['const'] + [
                 'x{}'.format(i) for i in range(n_total_features - 1)]
 
+            # Diagnostics from first imputed dataset
+            diagnostics = {}
+            try:
+                first_X = sm.add_constant(
+                    IterativeImputer(
+                        max_iter=self.max_iter, random_state=0
+                    ).fit_transform(full_data)[:, :n_features])
+                first_y = full_data[:, n_features]
+                first_model = sm.OLS(
+                    np.where(np.isnan(first_y), 0, first_y),
+                    first_X).fit()
+                diagnostics['vif'] = compute_vif(first_X[:, 1:])
+                diagnostics['residual_summary'] = residual_summary(
+                    first_model.resid)
+                diagnostics['shapiro_wilk'] = shapiro_wilk_test(
+                    first_model.resid)
+            except Exception:
+                pass
+
             stats = {
                 'sample_size': self.sample_size,
                 'complete_cases': complete_cases,
@@ -172,6 +192,7 @@ class MultipleImputation(AbstractTask):
                 'df': df_adjusted.tolist(),
                 'missingness_fractions': missingness_fractions,
                 'feature_names': feature_names,
+                'diagnostics': diagnostics,
             }
 
             url = gen_mid_artifacts_url(

@@ -5,6 +5,10 @@
 
 library(jsonlite)
 
+# Source shared diagnostics utilities
+this_script <- sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))
+source(file.path(dirname(this_script), "..", "..", "r_diagnostics_utils.R"))
+
 args <- commandArgs(trailingOnly = TRUE)
 input_path  <- args[1]
 output_path <- args[2]
@@ -87,6 +91,10 @@ compute_auc <- function(probs, labels) {
 }
 auc <- compute_auc(prob_test, y_test)
 
+# Diagnostics
+diag <- glm_diagnostics(model, as.matrix(train_df[, -1]))
+hl <- hosmer_lemeshow_test(y_train, fitted(model))
+
 result <- list(
   sample_size          = jsonlite::unbox(as.integer(sample_size)),
   coef_                = list(coef_vals),
@@ -96,7 +104,15 @@ result <- list(
   metric_sensitivity   = jsonlite::unbox(sensitivity),
   metric_specificity   = jsonlite::unbox(specificity),
   metric_npv           = jsonlite::unbox(npv),
-  metric_ppv           = jsonlite::unbox(ppv)
+  metric_ppv           = jsonlite::unbox(ppv),
+  diagnostics          = list(
+    vif                        = diag$vif,
+    deviance_residual_summary  = diag$deviance_residual_summary,
+    pearson_residual_summary   = diag$pearson_residual_summary,
+    cooks_distance             = diag$cooks_distance,
+    hosmer_lemeshow            = hl,
+    prediction_intervals       = diag$prediction_intervals
+  )
 )
 
 write(toJSON(result, digits = 10), output_path)

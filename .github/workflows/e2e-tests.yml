@@ -61,6 +61,10 @@ jobs:
             file: test_negative_binomial_workflow.py
           - name: R Negative Binomial
             file: test_r_negative_binomial_workflow.py
+          - name: Python Multiple Imputation
+            file: test_multiple_imputation_workflow.py
+          - name: R Multiple Imputation
+            file: test_r_multiple_imputation_workflow.py
 
     name: "e2e (${{ matrix.test.name }})"
 

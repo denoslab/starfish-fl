@@ -19,10 +19,15 @@ RUN apt-get update \
     dos2unix \
     r-base-core \
     r-recommended \
+    gfortran \
+    libnlopt-dev \
+    cmake \
+    liblapack-dev \
+    libblas-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages required by R-based tasks
-RUN Rscript -e "install.packages(c('jsonlite', 'survival'), repos='https://cloud.r-project.org')"
+RUN Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), repos='https://cloud.r-project.org')"
 
 # Install Poetry first to leverage cache
 RUN pip3 install --no-cache-dir poetry

@@ -10,11 +10,13 @@ This workbench provides a unified environment to run and test all Starfish compo
 
 The workbench orchestrates the following components:
 - **Router**: Routing server for coordinating federated learning
-- **Controller**: Site management and FL task execution  
+- **Controller**: Site management and FL task execution (includes R runtime for R-based tasks)
 - **PostgreSQL**: Database for the router
 - **Redis**: Cache and message broker for the controller
 
 All components are configured to work together out of the box.
+
+> **Note:** The controller Docker image includes R and compiled R packages (`jsonlite`, `survival`, `mice`) for R-based FL tasks. The first build may take longer due to R package compilation.
 
 ## Prerequisites
 

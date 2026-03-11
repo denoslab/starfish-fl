@@ -42,7 +42,7 @@ In this section, we use healthcare as an example how Starfish-FL can be used.
 
 **Projects**: Define one or multiple FL tasks with specified coordinator and participants.
 
-**Tasks**: Individual machine learning operations (e.g., LogisticRegression, LinearRegression) within a project.
+**Tasks**: Individual machine learning operations (e.g., LogisticRegression, CoxProportionalHazards, PoissonRegression) within a project. Tasks can be implemented in Python or R.
 
 **Runs**: Execution instances of a project, allowing repeated training over time.
 
@@ -104,7 +104,8 @@ The Controller component is installed on each site participating in federated le
 **Key Features:**
 - Web-based user interface for project management
 - Local model training and dataset management
-- Support for multiple ML tasks (Logistic Regression, Linear Regression, SVM, ANCOVA, Ordinal Logistic Regression, Mixed Effects Logistic Regression)
+- Support for 18 ML tasks across Python and R (regression, classification, survival analysis, count data models, multiple imputation)
+- Built-in model diagnostics (VIF, residual analysis, goodness-of-fit tests, prediction intervals)
 - Real-time progress monitoring
 - Celery-based distributed task processing
 
@@ -183,7 +184,8 @@ make down        # Stop and remove containers
 - **Task Queue**: Celery
 - **Databases**: PostgreSQL (Router), SQLite (Controller)
 - **Cache**: Redis
-- **ML Libraries**: scikit-learn, NumPy, Pandas
+- **Python ML Libraries**: scikit-learn, NumPy, Pandas, statsmodels, scipy, lifelines
+- **R Runtime**: R 4.x with `jsonlite`, `survival`, `mice`, `MASS`
 - **Containerization**: Docker, Docker Compose
 
 ### Running Tests
@@ -228,15 +230,39 @@ Router:
 
 ## Supported ML Tasks
 
+All tasks below are available in both Python and R (where noted), allowing researchers to use their preferred language.
+
+### Classification & Regression
 - **Logistic Regression**: Binary classification with standard logistic regression
-- **Statistical Logistic Regression**: Binary classification with statistical inference (coefficients, p-values, confidence intervals)
+- **Statistical Logistic Regression**: Binary classification with statistical inference (coefficients, p-values, confidence intervals, odds ratios)
 - **Linear Regression**: Continuous value prediction
 - **SVM Regression**: Support Vector Machine regression
 - **ANCOVA**: Analysis of Covariance for statistical analysis
 - **Ordinal Logistic Regression**: Proportional odds model for ordered categorical outcomes
 - **Mixed Effects Logistic Regression**: Multilevel logistic regression for clustered/hierarchical binary data
 
-See [TASK_GUIDE.md](controller/TASK_GUIDE.md) for configuration details.
+### Survival Analysis
+- **Cox Proportional Hazards**: Time-to-event regression with hazard ratios (Python: `lifelines`, R: `survival::coxph`)
+- **Kaplan-Meier**: Non-parametric survival estimation with log-rank test (Python: `lifelines`, R: `survival::survfit`)
+
+### Count Data Models
+- **Poisson Regression**: GLM for count data with rate ratios (Python: `statsmodels`, R: `glm(family=poisson)`)
+- **Negative Binomial Regression**: Overdispersed count data (Python: `statsmodels`, R: `MASS::glm.nb`)
+
+### Missing Data
+- **Multiple Imputation (MICE)**: Multiple imputation by chained equations with Rubin's rules (Python: `sklearn.impute.IterativeImputer`, R: `mice::mice`)
+
+### R Implementations
+R versions of the following are available: Logistic Regression, Cox PH, Kaplan-Meier, Poisson, Negative Binomial, Multiple Imputation. R tasks extend `AbstractRTask` and run R scripts via `Rscript` subprocess.
+
+### Cross-Cutting: Model Diagnostics
+All regression tasks include built-in diagnostics in their output:
+- VIF (multicollinearity), residual summaries, Cook's distance
+- Shapiro-Wilk normality test, Hosmer-Lemeshow GOF, overdispersion test
+- Schoenfeld residuals for Cox PH proportional hazards assumption
+- Confidence and prediction interval summaries
+
+See [TASK_GUIDE.md](controller/TASK_GUIDE.md) for configuration details and diagnostic field reference.
 
 ## Security
 

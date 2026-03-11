@@ -22,6 +22,8 @@ RUN apt-get update \
     gfortran \
     libnlopt-dev \
     cmake \
+    liblapack-dev \
+    libblas-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages required by R-based tasks

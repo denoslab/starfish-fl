@@ -50,7 +50,7 @@ After registration, your site will be able to participate in federated learning 
 **Required information:**
 - **Project Name**: Descriptive name (e.g., "Diabetes Prediction Study")
 - **Project Description**: What the project is about
-- **Task Configuration**: See [TASK_GUIDE.md](TASK_GUIDE.md) for all 18 available models
+- **Task Configuration**: See [TASK_GUIDE.md](TASK_GUIDE.md) for all 20 available models
 
 **Process:**
 1. Fill in project details
@@ -357,6 +357,31 @@ After a successful federated learning run, you can download three types of files
 | **hazard_ratio** | Hazard ratios | HR > 1 = higher risk, HR < 1 = lower risk |
 | **concordance_index** | C-statistic | Discrimination ability (0.5 = random, 1.0 = perfect) |
 
+#### For Censored Regression Models (CensoredRegression)
+
+**JSON Structure:**
+```json
+{
+  "sample_size": 200,
+  "coef": [2.05, 0.48, -0.31],
+  "se": [0.47, 0.25, 0.37],
+  "sigma": 1.02,
+  "p_values": [0.001, 0.054, 0.400],
+  "ci_lower": [1.13, -0.01, -1.03],
+  "ci_upper": [2.97, 0.97, 0.41],
+  "log_likelihood": -245.3,
+  "feature_names": ["intercept", "x0", "x1"],
+  "diagnostics": { ... }
+}
+```
+
+| Field | Meaning | Interpretation |
+|-------|---------|----------------|
+| **coef** | Regression coefficients (including intercept) | Effect of each feature on the latent outcome |
+| **sigma** | Scale parameter | Estimated standard deviation of the error term |
+| **log_likelihood** | Log-likelihood at MLE | Model fit (higher = better); used for AIC/BIC |
+| **diagnostics.censoring_summary** | Censoring breakdown | n_observed, n_right_censored, n_left_censored, pct_censored |
+
 #### For Count Data Models (PoissonRegression, NegativeBinomialRegression)
 
 **JSON Structure:**
@@ -465,11 +490,12 @@ Actual Negative     TN       FP
 | **MixedEffectsLogisticRegression** | Clustered binary data | CSV with group ID + features + binary label |
 | **CoxProportionalHazards** | Survival analysis | CSV with features + time + event (0/1) |
 | **KaplanMeier** | Non-parametric survival | CSV with group + features + time + event |
+| **CensoredRegression** | Censored continuous outcomes (Tobit) | CSV with features + outcome + censoring (-1/0/1) |
 | **PoissonRegression** | Count data (event rates) | CSV with features + offset + count |
 | **NegativeBinomialRegression** | Overdispersed count data | CSV with features + offset + count |
 | **MultipleImputation** | Missing data handling (MICE) | CSV with features (may have NaN) + outcome |
 
-R versions of LogisticRegression, CoxPH, KaplanMeier, Poisson, NegBinomial, and MultipleImputation are also available (prefix model name with `R`, e.g., `RCoxProportionalHazards`).
+R versions of LogisticRegression, CoxPH, KaplanMeier, CensoredRegression, Poisson, NegBinomial, and MultipleImputation are also available (prefix model name with `R`, e.g., `RCoxProportionalHazards`, `RCensoredRegression`).
 
 ### Run States
 

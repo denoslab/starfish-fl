@@ -269,7 +269,7 @@ The controller supports FL tasks implemented in R via the `AbstractRTask` base c
 - Communication between Python and R uses temporary JSON files
 - R scripts are invoked via `Rscript --vanilla` subprocess
 
-Available R tasks: `RLogisticRegression`, `RCoxProportionalHazards`, `RKaplanMeier`, `RPoissonRegression`, `RNegativeBinomialRegression`, `RMultipleImputation`
+Available R tasks: `RLogisticRegression`, `RCoxProportionalHazards`, `RKaplanMeier`, `RCensoredRegression`, `RPoissonRegression`, `RNegativeBinomialRegression`, `RMultipleImputation`
 
 ### Installing R Dependencies (Local Development)
 

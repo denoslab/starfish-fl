@@ -450,6 +450,65 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 ]
 ```
 
+### Censored Regression (Tobit)
+
+**Description:** Tobit Type I censored regression for continuous outcomes with left and/or right censoring
+
+**Use Case:** Modeling continuous outcomes that are bounded by detection limits — e.g., viral load below detectable threshold, biomarker concentrations capped by assay range, income data top-coded in surveys, pollutant measurements below instrument sensitivity
+
+**File Location:** `starfish/controller/tasks/censored_regression/`
+
+**Dataset Requirements:** CSV with features in all columns except the last two. Second-to-last column is the continuous outcome (possibly censored), last column is the censoring indicator: `0` = observed, `1` = right-censored, `-1` = left-censored.
+
+**Python Implementation:** Custom maximum likelihood estimation via `scipy.optimize` with analytical gradients. No additional dependencies required.
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "CensoredRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
+**Statistical Outputs:**
+- Coefficients (including intercept) with standard errors, p-values, 95% CI
+- Scale parameter (sigma)
+- Log-likelihood
+
+**Aggregation:** Inverse-variance weighted meta-analysis of coefficients; sample-size weighted pooling of sigma
+
+### R Censored Regression (Tobit)
+
+**Description:** Tobit Type I censored regression using R's `survival::survreg(dist="gaussian")`
+
+**Use Case:** Same as Censored Regression above, for researchers who prefer R
+
+**File Location:** `starfish/controller/tasks/r_censored_regression/`
+
+**Dataset Requirements:** Same as Censored Regression above
+
+**R Dependencies:** `survival` (installed automatically in Docker)
+
+**Example Configuration:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "RCensoredRegression",
+    "config": {
+      "total_round": 1,
+      "current_round": 1
+    }
+  }
+]
+```
+
 ### Multiple Imputation (MICE)
 
 **Description:** Multiple Imputation by Chained Equations for handling missing data in federated analysis
@@ -626,6 +685,17 @@ All regression tasks now include a `diagnostics` sub-object in their mid-artifac
 |-------|-------------|
 | `diagnostics.proportional_hazards_test` | Schoenfeld residuals test for PH assumption — per-feature test_statistic and p_value |
 | `diagnostics.deviance_residual_summary` | Summary of deviance residuals |
+
+### Censored Regression (Tobit) Diagnostics
+
+| Field | Description |
+|-------|-------------|
+| `diagnostics.vif` | Variance Inflation Factor for each feature |
+| `diagnostics.residual_summary` | Summary of residuals for observed (uncensored) data points |
+| `diagnostics.shapiro_wilk` | Normality test on residuals of observed data |
+| `diagnostics.censoring_summary` | Counts and percentages: n_observed, n_right_censored, n_left_censored, pct_censored |
+| `diagnostics.aic` | Akaike Information Criterion |
+| `diagnostics.bic` | Bayesian Information Criterion |
 
 ### Multiple Imputation (MICE) Diagnostics
 

@@ -376,6 +376,49 @@ def logistic_diagnostics(X, y, model_result):
     return diag
 
 
+def tobit_diagnostics(X, y, censor, beta, sigma):
+    """Diagnostics for Tobit (censored regression) model.
+
+    Parameters
+    ----------
+    X : ndarray (n, p)  design matrix WITH intercept
+    y : ndarray (n,)  outcome
+    censor : ndarray (n,)  0=observed, 1=right-censored, -1=left-censored
+    beta : ndarray (p,)  fitted coefficients
+    sigma : float  fitted scale parameter
+
+    Returns
+    -------
+    dict
+    """
+    X_no_const = X[:, 1:] if X.shape[1] > 1 else X
+
+    diag = {}
+
+    # VIF on features
+    if X_no_const.shape[1] > 0:
+        diag['vif'] = compute_vif(X_no_const)
+
+    # Residuals for observed data
+    obs = censor == 0
+    if np.any(obs):
+        mu = X[obs] @ beta
+        resid = y[obs] - mu
+        diag['residual_summary'] = residual_summary(resid)
+        diag['shapiro_wilk'] = shapiro_wilk_test(resid)
+
+    # Censoring summary
+    n = len(censor)
+    diag['censoring_summary'] = {
+        'n_observed': int(np.sum(censor == 0)),
+        'n_right_censored': int(np.sum(censor == 1)),
+        'n_left_censored': int(np.sum(censor == -1)),
+        'pct_censored': float(np.mean(censor != 0) * 100),
+    }
+
+    return diag
+
+
 def cox_diagnostics(cph, train_df):
     """Diagnostics for Cox PH model (lifelines).
 

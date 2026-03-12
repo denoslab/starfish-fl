@@ -5,6 +5,7 @@
 [![E2E Tests](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+[![R 4.x](https://img.shields.io/badge/R-4.x-276DC3.svg)](https://www.r-project.org/)
 [![Django](https://img.shields.io/badge/Django-4.2-green.svg)](https://www.djangoproject.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 
@@ -12,11 +13,15 @@
 
 Starfish-FL is an agentic federated learning (FL) framework that is native to AI agents. It is an essential component of the STARFISH project. It focuses on federated learning and analysis for the Analysis Mandate function of STARFISH.
 
-Starfish-FL also offers a friendly user interface for easy use in domains including healthcare, compututing resource allocation, and finance. Starfish-FL enables secure, privacy-preserving collaborative machine learning across multiple sites without centralizing sensitive data.
+Starfish-FL also offers a friendly user interface for easy use in domains including healthcare, computing resource allocation, and finance. Starfish-FL enables secure, privacy-preserving collaborative machine learning across multiple sites without centralizing sensitive data.
+
+### Built for Biostatisticians
+
+Starfish-FL is designed with biostatisticians and clinical researchers in mind. Every supported analysis method is available in **both Python and R**, so researchers can work in their preferred language without learning a new toolchain. The task library covers the methods biostatisticians use daily — logistic regression, Cox proportional hazards, Kaplan-Meier survival curves, Poisson and negative binomial models for count data, censored regression (Tobit) for detection-limit outcomes, MICE for missing data, and more — all federated out of the box with proper inverse-variance weighted meta-analysis and built-in diagnostics (VIF, residuals, goodness-of-fit tests).
 
 ## Overview
 
-Starfish-FL is a complete federatfed learning platform consisting of three main components:
+Starfish-FL is a complete federated learning platform consisting of three main components:
 
 - **[Controller](controller/)** - Site management and FL task execution
 - **[Router](router/)** - Central coordination and message routing  
@@ -42,7 +47,7 @@ In this section, we use healthcare as an example how Starfish-FL can be used.
 
 **Projects**: Define one or multiple FL tasks with specified coordinator and participants.
 
-**Tasks**: Individual machine learning operations (e.g., LogisticRegression, CoxProportionalHazards, PoissonRegression) within a project. Tasks can be implemented in Python or R.
+**Tasks**: Individual machine learning operations (e.g., LogisticRegression, CoxProportionalHazards, CensoredRegression, PoissonRegression) within a project. Tasks can be implemented in Python or R.
 
 **Runs**: Execution instances of a project, allowing repeated training over time.
 
@@ -104,7 +109,7 @@ The Controller component is installed on each site participating in federated le
 **Key Features:**
 - Web-based user interface for project management
 - Local model training and dataset management
-- Support for 18 ML tasks across Python and R (regression, classification, survival analysis, count data models, multiple imputation)
+- Support for 20 ML tasks across Python and R (regression, classification, survival analysis, censored regression, count data models, multiple imputation)
 - Built-in model diagnostics (VIF, residual analysis, goodness-of-fit tests, prediction intervals)
 - Real-time progress monitoring
 - Celery-based distributed task processing
@@ -230,36 +235,43 @@ Router:
 
 ## Supported ML Tasks
 
-All tasks below are available in both Python and R (where noted), allowing researchers to use their preferred language.
+Every task below is available in **both Python and R** (where noted), so biostatisticians and data scientists can work in whichever language they prefer.
 
 ### Classification & Regression
-- **Logistic Regression**: Binary classification with standard logistic regression
-- **Statistical Logistic Regression**: Binary classification with statistical inference (coefficients, p-values, confidence intervals, odds ratios)
-- **Linear Regression**: Continuous value prediction
-- **SVM Regression**: Support Vector Machine regression
-- **ANCOVA**: Analysis of Covariance for statistical analysis
-- **Ordinal Logistic Regression**: Proportional odds model for ordered categorical outcomes
-- **Mixed Effects Logistic Regression**: Multilevel logistic regression for clustered/hierarchical binary data
+| Task | Python | R | Description |
+|------|:------:|:-:|-------------|
+| Logistic Regression | `LogisticRegression` | `RLogisticRegression` | Binary classification with standard logistic regression |
+| Statistical Logistic Regression | `LogisticRegressionStats` | — | Binary classification with statistical inference (coefficients, p-values, CI, odds ratios) |
+| Linear Regression | `LinearRegression` | — | Continuous value prediction |
+| SVM Regression | `SVMRegression` | — | Support Vector Machine regression |
+| ANCOVA | `Ancova` | — | Analysis of Covariance for group comparisons controlling for covariates |
+| Ordinal Logistic Regression | `OrdinalLogisticRegression` | — | Proportional odds model for ordered categorical outcomes |
+| Mixed Effects Logistic Regression | `MixedEffectsLogisticRegression` | — | Multilevel logistic regression for clustered/hierarchical binary data |
 
-### Survival Analysis
-- **Cox Proportional Hazards**: Time-to-event regression with hazard ratios (Python: `lifelines`, R: `survival::coxph`)
-- **Kaplan-Meier**: Non-parametric survival estimation with log-rank test (Python: `lifelines`, R: `survival::survfit`)
+### Survival Analysis & Censored Outcomes
+| Task | Python | R | Description |
+|------|:------:|:-:|-------------|
+| Cox Proportional Hazards | `CoxProportionalHazards` | `RCoxProportionalHazards` | Time-to-event regression with hazard ratios (`lifelines` / `survival::coxph`) |
+| Kaplan-Meier | `KaplanMeier` | `RKaplanMeier` | Non-parametric survival estimation with log-rank test (`lifelines` / `survival::survfit`) |
+| Censored Regression (Tobit) | `CensoredRegression` | `RCensoredRegression` | Tobit Type I model for continuous outcomes with left/right censoring (custom MLE / `survival::survreg`) |
 
 ### Count Data Models
-- **Poisson Regression**: GLM for count data with rate ratios (Python: `statsmodels`, R: `glm(family=poisson)`)
-- **Negative Binomial Regression**: Overdispersed count data (Python: `statsmodels`, R: `MASS::glm.nb`)
+| Task | Python | R | Description |
+|------|:------:|:-:|-------------|
+| Poisson Regression | `PoissonRegression` | `RPoissonRegression` | GLM for count data with rate ratios (`statsmodels` / `glm(family=poisson)`) |
+| Negative Binomial Regression | `NegativeBinomialRegression` | `RNegativeBinomialRegression` | Overdispersed count data (`statsmodels` / `MASS::glm.nb`) |
 
 ### Missing Data
-- **Multiple Imputation (MICE)**: Multiple imputation by chained equations with Rubin's rules (Python: `sklearn.impute.IterativeImputer`, R: `mice::mice`)
-
-### R Implementations
-R versions of the following are available: Logistic Regression, Cox PH, Kaplan-Meier, Poisson, Negative Binomial, Multiple Imputation. R tasks extend `AbstractRTask` and run R scripts via `Rscript` subprocess.
+| Task | Python | R | Description |
+|------|:------:|:-:|-------------|
+| Multiple Imputation (MICE) | `MultipleImputation` | `RMultipleImputation` | Multiple imputation by chained equations with Rubin's rules (`sklearn` / `mice::mice`) |
 
 ### Cross-Cutting: Model Diagnostics
 All regression tasks include built-in diagnostics in their output:
 - VIF (multicollinearity), residual summaries, Cook's distance
 - Shapiro-Wilk normality test, Hosmer-Lemeshow GOF, overdispersion test
 - Schoenfeld residuals for Cox PH proportional hazards assumption
+- Censoring summary and AIC/BIC for censored regression
 - Confidence and prediction interval summaries
 
 See [TASK_GUIDE.md](controller/TASK_GUIDE.md) for configuration details and diagnostic field reference.

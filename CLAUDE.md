@@ -162,7 +162,7 @@ Each component uses a `.env` file (copy from `.env.example`):
 - Python 3.10.10, Django 4.2, Poetry for dependency management
 - Controller DB: SQLite; Router DB: PostgreSQL
 - Task queue: Celery + Redis
-- Python ML: scikit-learn, numpy, pandas, statsmodels, scipy, lifelines
+- Python ML: scikit-learn, numpy, pandas, statsmodels, scipy, lifelines (20 tasks total, all with R equivalents where applicable)
 - R runtime: R 4.x with `jsonlite`, `survival`, `mice`, `MASS`
 - R system deps (for package compilation): `gfortran`, `libnlopt-dev`, `cmake`, `liblapack-dev`, `libblas-dev`
 - Router state machine: `django-fsm`

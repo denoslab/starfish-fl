@@ -6,6 +6,7 @@ from starfish.controller.tasks.diagnostics import (
     hat_matrix_diag, shapiro_wilk_test, hosmer_lemeshow_test,
     overdispersion_test, prediction_interval_summary,
     ols_diagnostics, glm_diagnostics, logistic_diagnostics,
+    tobit_diagnostics,
 )
 
 
@@ -195,3 +196,41 @@ class LogisticDiagnosticsIntegrationTest(TestCase):
         self.assertIn('vif', diag)
         self.assertIn('hosmer_lemeshow', diag)
         self.assertIn('deviance_residual_summary', diag)
+
+
+class TobitDiagnosticsTest(TestCase):
+    def test_tobit_diagnostics(self):
+        rng = np.random.default_rng(42)
+        X_raw = rng.standard_normal((200, 2))
+        X = np.column_stack([np.ones(200), X_raw])
+        beta = np.array([2.0, 0.5, -0.3])
+        sigma = 1.0
+        noise = rng.normal(0, sigma, 200)
+        y = X @ beta + noise
+        # Right-censor at 70th percentile
+        threshold = np.percentile(y, 70)
+        censor = np.where(y <= threshold, 0.0, 1.0)
+        y = np.where(y <= threshold, y, threshold)
+
+        diag = tobit_diagnostics(X, y, censor, beta, sigma)
+        self.assertIn('vif', diag)
+        self.assertEqual(len(diag['vif']), 2)
+        self.assertIn('residual_summary', diag)
+        self.assertIn('censoring_summary', diag)
+        self.assertEqual(
+            diag['censoring_summary']['n_observed'] +
+            diag['censoring_summary']['n_right_censored'],
+            200)
+        self.assertGreater(diag['censoring_summary']['pct_censored'], 0)
+
+    def test_tobit_diagnostics_left_censored(self):
+        rng = np.random.default_rng(42)
+        X = np.column_stack([np.ones(100), rng.standard_normal((100, 1))])
+        beta = np.array([1.0, 0.5])
+        sigma = 1.0
+        y = X @ beta + rng.normal(0, sigma, 100)
+        censor = np.where(y >= np.percentile(y, 30), 0.0, -1.0)
+
+        diag = tobit_diagnostics(X, y, censor, beta, sigma)
+        self.assertGreater(diag['censoring_summary']['n_left_censored'], 0)
+        self.assertEqual(diag['censoring_summary']['n_right_censored'], 0)

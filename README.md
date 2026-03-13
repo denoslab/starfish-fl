@@ -15,9 +15,11 @@ Starfish-FL is an agentic federated learning (FL) framework that is native to AI
 
 Starfish-FL also offers a friendly user interface for easy use in domains including healthcare, computing resource allocation, and finance. Starfish-FL enables secure, privacy-preserving collaborative machine learning across multiple sites without centralizing sensitive data.
 
-### Built for Biostatisticians
+### Use Cases
 
-Starfish-FL is designed with biostatisticians and clinical researchers in mind. Every supported analysis method is available in **both Python and R**, so researchers can work in their preferred language without learning a new toolchain. The task library covers the methods biostatisticians use daily — logistic regression, Cox proportional hazards, Kaplan-Meier survival curves, Poisson and negative binomial models for count data, censored regression (Tobit) for detection-limit outcomes, MICE for missing data, and more — all federated out of the box with proper inverse-variance weighted meta-analysis and built-in diagnostics (VIF, residuals, goodness-of-fit tests).
+**Biostatistics & Clinical Research** — Starfish-FL supports the methods biostatisticians use daily — logistic regression, Cox proportional hazards, Kaplan-Meier survival curves, Poisson and negative binomial models for count data, censored regression (Tobit) for detection-limit outcomes, MICE for missing data, and more — all federated out of the box with proper inverse-variance weighted meta-analysis and built-in diagnostics (VIF, residuals, goodness-of-fit tests). Every task is available in **both Python and R**, so researchers can work in their preferred language. Hospitals and research institutions can collaboratively build models on patient data without sharing sensitive records.
+
+**Carbon-Aware Computing** — Starfish-FL enables predicting energy consumption and carbon footprints for containerized workloads across distributed infrastructure. By training regression models federally across edge and cloud sites, organizations can forecast resource energy demands and make carbon-conscious scheduling decisions — all without centralizing sensitive operational data. See our paper on [federated learning for carbon-aware container orchestration](https://arxiv.org/abs/2510.03970) for details.
 
 ## Overview
 
@@ -235,7 +237,7 @@ Router:
 
 ## Supported ML Tasks
 
-Every task below is available in **both Python and R** (where noted), so biostatisticians and data scientists can work in whichever language they prefer.
+Every task below is available in **both Python and R** (where noted), so researchers and data scientists can work in whichever language they prefer.
 
 ### Classification & Regression
 | Task | Python | R | Description |

@@ -13,12 +13,18 @@ RUN apt-get update \
     libblas-dev \
     make \
     g++ \
+    zlib1g-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Install R packages into a dedicated library path so we can copy just these
+# Fail the build if any package fails to install
 ENV R_LIBS_USER=/opt/R/libs
 RUN mkdir -p $R_LIBS_USER \
-    && Rscript -e "install.packages(c('jsonlite', 'survival', 'mice'), lib='$R_LIBS_USER', repos='https://cloud.r-project.org', Ncpus=parallel::detectCores())"
+    && Rscript -e "\
+    pkgs <- c('jsonlite', 'survival', 'mice'); \
+    install.packages(pkgs, lib='$R_LIBS_USER', repos='https://cloud.r-project.org', Ncpus=parallel::detectCores()); \
+    for (p in pkgs) { if (!requireNamespace(p, lib.loc='$R_LIBS_USER', quietly=TRUE)) stop(paste('Package', p, 'failed to install')) }"
 
 # Strip R packages: remove static libs, docs, help, and demo files
 RUN find $R_LIBS_USER -name '*.a' -delete \

@@ -9,7 +9,7 @@
 [![Django](https://img.shields.io/badge/Django-4.2-green.svg)](https://www.djangoproject.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
 
-![Starfish-FL Logo](docs/images/starfish-fl.png)
+![Starfish-FL Logo](docs/images/starfish-fl-lan.png)
 
 Starfish-FL is an agentic federated learning (FL) framework that is native to AI agents. It is an essential component of the STARFISH project. It focuses on federated learning and analysis for the Analysis Mandate function of STARFISH.
 
@@ -64,7 +64,7 @@ In this section, we use healthcare as an example how Starfish-FL can be used.
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/denoslab/starfish-fl.git
    cd starfish-fl
    ```
 

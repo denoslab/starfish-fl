@@ -74,7 +74,7 @@ The system validates:
 
 **Use Case:** Predicting binary outcomes (Yes/No, 0/1, True/False)
 
-**File Location:** `starfish/controller/tasks/logistic_regression.py`
+**File Location:** `starfish/controller/tasks/logistic_regression/task.py`
 
 **Dataset Requirements:** CSV with features in all columns except last, binary label (0 or 1) in last column
 
@@ -84,7 +84,7 @@ The system validates:
 
 **Use Case:** Predicting continuous numerical outcomes (e.g., prices, temperatures, life expectancy)
 
-**File Location:** `starfish/controller/tasks/linear_regression.py`
+**File Location:** `starfish/controller/tasks/linear_regression/task.py`
 
 **Dataset Requirements:** CSV with features in all columns except last, continuous target value in last column
 
@@ -94,7 +94,7 @@ The system validates:
 
 **Use Case:** Binary classification with focus on statistical significance
 
-**File Location:** `starfish/controller/tasks/stats_models/logistic_regression_stats.py`
+**File Location:** `starfish/controller/tasks/logistic_regression_stats/task.py`
 
 **Dataset Requirements:** CSV with features in all columns except last, binary outcome (0 or 1) in last column. Minimum 30 samples required.
 
@@ -110,7 +110,7 @@ The system validates:
 
 **Use Case:** Comparing group means while accounting for continuous variables (e.g., treatment effects controlling for age)
 
-**File Location:** `starfish/controller/tasks/stats_models/ancova.py`
+**File Location:** `starfish/controller/tasks/ancova/task.py`
 
 **Dataset Requirements:** CSV with:
 - First K columns: group indicators (one-hot encoded)
@@ -131,7 +131,7 @@ Minimum 30 samples required.
 
 **Use Case:** When your outcome has natural ordering but isn't continuous (e.g., disease severity levels, satisfaction ratings 1-5, education levels)
 
-**File Location:** `starfish/controller/tasks/stats_models/ordinal_logistic_regression.py`
+**File Location:** `starfish/controller/tasks/ordinal_logistic_regression/task.py`
 
 **Dataset Requirements:** CSV with:
 - First N-1 columns: predictor variables (continuous or dummy-encoded)
@@ -152,7 +152,7 @@ Minimum 30 samples required. Minimum 3 categories required.
 
 **Use Case:** When observations are grouped/nested within clusters (e.g., patients within hospitals, students within schools, repeated measures within subjects)
 
-**File Location:** `starfish/controller/tasks/stats_models/mixed_effects_logistic_regression.py`
+**File Location:** `starfish/controller/tasks/mixed_effects_logistic_regression/task.py`
 
 **Dataset Requirements:** CSV with:
 - First column: group/cluster identifier (e.g., hospital_id, site_id)

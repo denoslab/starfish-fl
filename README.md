@@ -28,7 +28,8 @@ Starfish-FL also offers a friendly user interface for easy use in domains includ
 Starfish-FL is a complete federated learning platform consisting of three main components:
 
 - **[Controller](controller/)** - Site management and FL task execution
-- **[Router](router/)** - Central coordination and message routing  
+- **[Router](router/)** - Central coordination and message routing
+- **[CLI](cli/)** - Typer-based CLI (`starfish` command) for human and AI agent use
 - **[Workbench](workbench/)** - Development and testing environment
 
 ### Architecture
@@ -247,7 +248,7 @@ Every task below is available in **both Python and R** (where noted), so researc
 | Logistic Regression | `LogisticRegression` | `RLogisticRegression` | Binary classification with standard logistic regression |
 | Statistical Logistic Regression | `LogisticRegressionStats` | — | Binary classification with statistical inference (coefficients, p-values, CI, odds ratios) |
 | Linear Regression | `LinearRegression` | — | Continuous value prediction |
-| SVM Regression | `SVMRegression` | — | Support Vector Machine regression |
+| SVM Regression | `SvmRegression` | — | Support Vector Machine regression |
 | ANCOVA | `Ancova` | — | Analysis of Covariance for group comparisons controlling for covariates |
 | Ordinal Logistic Regression | `OrdinalLogisticRegression` | — | Proportional odds model for ordered categorical outcomes |
 | Mixed Effects Logistic Regression | `MixedEffectsLogisticRegression` | — | Multilevel logistic regression for clustered/hierarchical binary data |

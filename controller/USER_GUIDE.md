@@ -484,6 +484,7 @@ Actual Negative     TN       FP
 |------|-------------|----------------|
 | **LogisticRegression** | Binary classification | CSV with features + binary label (0/1) |
 | **LinearRegression** | Continuous value prediction | CSV with features + continuous target |
+| **SvmRegression** | Support Vector Machine regression | CSV with features + continuous target |
 | **LogisticRegressionStats** | Statistical binary classification | CSV with features + binary label, min 30 samples |
 | **Ancova** | Group comparison with covariates | CSV with groups + covariates + outcome |
 | **OrdinalLogisticRegression** | Ordered categorical outcomes | CSV with features + ordinal label (0,1,2,...) |

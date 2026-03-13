@@ -35,7 +35,7 @@ Each task must have:
 | `RLogisticRegression` | R version of logistic regression | Same |
 | `LogisticRegressionStats` | Statistical logistic with inference | Features + binary label, min 30 samples |
 | `LinearRegression` | Continuous value prediction | Features + continuous target |
-| `SVMRegression` | Support Vector Machine regression | Features + continuous target |
+| `SvmRegression` | Support Vector Machine regression | Features + continuous target |
 | `Ancova` | Analysis of Covariance | Groups + covariates + outcome |
 | `OrdinalLogisticRegression` | Ordered categorical outcomes | Features + ordinal label (0,1,2,...) |
 | `MixedEffectsLogisticRegression` | Clustered binary data | Group ID + features + binary label |

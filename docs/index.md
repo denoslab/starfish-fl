@@ -4,6 +4,7 @@
 
 [![Controller Tests](https://github.com/denoslab/starfish-fl/actions/workflows/controller-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/controller-tests.yml)
 [![Router Tests](https://github.com/denoslab/starfish-fl/actions/workflows/router-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/router-tests.yml)
+[![E2E Tests](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/denoslab/starfish-fl/blob/main/LICENSE)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 [![R 4.x](https://img.shields.io/badge/R-4.x-276DC3.svg)](https://www.r-project.org/)
@@ -41,7 +42,7 @@ Starfish-FL is a mono-repo with three components:
 | Logistic Regression | `LogisticRegression` | `RLogisticRegression` |
 | Statistical Logistic Regression | `LogisticRegressionStats` | -- |
 | Linear Regression | `LinearRegression` | -- |
-| SVM Regression | `SVMRegression` | -- |
+| SVM Regression | `SvmRegression` | -- |
 | ANCOVA | `Ancova` | -- |
 | Ordinal Logistic Regression | `OrdinalLogisticRegression` | -- |
 | Mixed Effects Logistic Regression | `MixedEffectsLogisticRegression` | -- |
@@ -57,6 +58,7 @@ Starfish-FL is a mono-repo with three components:
 - [Getting Started](getting-started.md) -- Setup and first project
 - [Task Configuration](tasks/configuration.md) -- How to configure FL tasks
 - [User Guide](user-guide.md) -- Web interface walkthrough
+- [CLI Reference](cli.md) -- Command-line interface for human and AI agent use
 - [API Reference](api/abstract-task.md) -- Python API docs
 - [Architecture](architecture.md) -- System design and data flow
 

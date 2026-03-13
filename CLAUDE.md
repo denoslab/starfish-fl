@@ -118,9 +118,10 @@ The Controller uses two Celery queues: `starfish.run` (polling/heartbeat) and `s
 **Python tasks:**
 1. Create a new directory in `controller/starfish/controller/tasks/<task_name>/`
 2. Subclass `AbstractTask` and implement: `validate()`, `prepare_data()`, `training()`, `do_aggregate()`
-3. Register the task class in `controller/starfish/controller/tasks/__init__.py`
-4. Add diagnostics via `from starfish.controller.tasks.diagnostics import ...`
-5. Document the task config schema in `controller/TASK_GUIDE.md`
+3. Add diagnostics via `from starfish.controller.tasks.diagnostics import ...`
+4. Document the task config schema in `controller/TASK_GUIDE.md`
+
+Note: Tasks are discovered automatically via dynamic import. The model name in CamelCase is converted to snake_case to find the module (e.g., `CensoredRegression` → `censored_regression/task.py`). No explicit registration is required.
 
 **R tasks:**
 1. Create a directory `controller/starfish/controller/tasks/r_<task_name>/` with a `scripts/` subdirectory

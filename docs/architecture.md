@@ -81,10 +81,23 @@ Auth: HTTP Basic Auth
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/users/` | GET/POST | User management |
+| `/groups/` | GET/POST | Group management |
 | `/sites/` | GET/POST | Site registration |
+| `/sites/{id}/` | GET/PUT/PATCH/DELETE | Site detail |
+| `/sites/lookup/` | GET | Lookup site by `uid` |
 | `/sites/heartbeat/` | POST | Site liveness signal |
 | `/projects/` | GET/POST | Project management |
-| `/runs/` | POST | Create runs for a project batch |
+| `/projects/{id}/` | GET/PUT/PATCH/DELETE | Project detail |
+| `/projects/lookup/` | GET | Lookup projects by `site_id` or `name` |
+| `/project-participants/` | GET/POST | Manage project participants |
+| `/project-participants/lookup/` | GET | Get participants by `project` |
+| `/runs/` | GET/POST | List runs / bulk-create runs for a project batch |
+| `/runs/{id}/` | GET/PUT/PATCH | Run detail |
 | `/runs/{id}/status/` | PUT | State transitions |
+| `/runs/lookup/` | GET | Lookup runs by `project`, `batch_id`, `site_uid` |
+| `/runs/active/` | GET | Get all active runs |
+| `/runs/detail/` | GET | Get run details by `batch`, `project`, `site` |
 | `/runs-action/upload/` | POST | Upload artifacts/logs |
 | `/runs-action/download/` | GET | Download artifacts (zipped) |
+| `/runs-action/update/` | PUT | Update run status by action |

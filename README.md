@@ -36,7 +36,7 @@ Starfish-FL is a complete federated learning platform consisting of three main c
 
 In this section, we use healthcare as an example how Starfish-FL can be used.
 
-![Starfish-FL Architecture](router/docs/images/starfish-arch.png)
+![Starfish-FL Architecture](docs/images/starfish-arch.png)
 
 ### Key Concepts
 

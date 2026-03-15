@@ -50,7 +50,7 @@ After registration, your site will be able to participate in federated learning 
 **Required information:**
 - **Project Name**: Descriptive name (e.g., "Diabetes Prediction Study")
 - **Project Description**: What the project is about
-- **Task Configuration**: See TASK_GUIDE.md. (Note: Currently supports `LogisticRegression`)
+- **Task Configuration**: See [TASK_GUIDE.md](TASK_GUIDE.md) for all 20 available models
 
 **Process:**
 1. Fill in project details
@@ -335,18 +335,101 @@ After a successful federated learning run, you can download three types of files
 - **OR > 1**: Increases odds of outcome (e.g., OR=2.5 means 2.5x higher odds)
 - **OR < 1**: Decreases odds of outcome (e.g., OR=0.5 means 50% lower odds)
 
+#### For Survival Models (CoxProportionalHazards)
+
+**JSON Structure:**
+```json
+{
+  "sample_size": 300,
+  "coef": [-0.234, 0.567],
+  "se": [0.112, 0.089],
+  "hazard_ratio": [0.791, 1.763],
+  "p_values": [0.037, 0.001],
+  "ci_lower": [-0.454, 0.392],
+  "ci_upper": [-0.014, 0.742],
+  "concordance_index": 0.72,
+  "diagnostics": { ... }
+}
+```
+
+| Field | Meaning | Interpretation |
+|-------|---------|----------------|
+| **hazard_ratio** | Hazard ratios | HR > 1 = higher risk, HR < 1 = lower risk |
+| **concordance_index** | C-statistic | Discrimination ability (0.5 = random, 1.0 = perfect) |
+
+#### For Censored Regression Models (CensoredRegression)
+
+**JSON Structure:**
+```json
+{
+  "sample_size": 200,
+  "coef": [2.05, 0.48, -0.31],
+  "se": [0.47, 0.25, 0.37],
+  "sigma": 1.02,
+  "p_values": [0.001, 0.054, 0.400],
+  "ci_lower": [1.13, -0.01, -1.03],
+  "ci_upper": [2.97, 0.97, 0.41],
+  "log_likelihood": -245.3,
+  "feature_names": ["intercept", "x0", "x1"],
+  "diagnostics": { ... }
+}
+```
+
+| Field | Meaning | Interpretation |
+|-------|---------|----------------|
+| **coef** | Regression coefficients (including intercept) | Effect of each feature on the latent outcome |
+| **sigma** | Scale parameter | Estimated standard deviation of the error term |
+| **log_likelihood** | Log-likelihood at MLE | Model fit (higher = better); used for AIC/BIC |
+| **diagnostics.censoring_summary** | Censoring breakdown | n_observed, n_right_censored, n_left_censored, pct_censored |
+
+#### For Count Data Models (PoissonRegression, NegativeBinomialRegression)
+
+**JSON Structure:**
+```json
+{
+  "sample_size": 500,
+  "coef": [0.523, -0.234],
+  "se": [0.112, 0.089],
+  "rate_ratios": [1.687, 0.791],
+  "deviance": 234.56,
+  "pearson_chi2": 245.12,
+  "diagnostics": { ... }
+}
+```
+
+| Field | Meaning | Interpretation |
+|-------|---------|----------------|
+| **rate_ratios** | Incidence rate ratios | RR > 1 = higher rate, RR < 1 = lower rate |
+| **deviance** | Deviance statistic | Model fit (closer to df_resid = good fit) |
+
+#### Understanding Model Diagnostics
+
+All regression tasks now include a `diagnostics` sub-object with privacy-safe summary statistics:
+
+| Diagnostic | What It Tells You | Concerning Values |
+|-----------|-------------------|-------------------|
+| **VIF** | Multicollinearity between features | VIF > 10 suggests problems |
+| **Shapiro-Wilk p-value** | Are residuals normally distributed? | p < 0.05 = non-normal |
+| **Hosmer-Lemeshow p-value** | Is the logistic model well-calibrated? | p < 0.05 = poor fit |
+| **Overdispersion ratio** | Is there more variance than expected? | ratio >> 1 = overdispersed |
+| **Cook's distance n_influential** | How many outliers affect the model? | Many influential points = investigate |
+| **PH test p-value** (Cox) | Is the proportional hazards assumption met? | p < 0.05 = assumption violated |
+
+See [TASK_GUIDE.md](TASK_GUIDE.md) for the complete diagnostics field reference.
+
 ### 3. Mid-Artifacts (Intermediate Results)
 
 **Purpose:** Contains your local model BEFORE aggregation with other participants
 
 **Who gets this:** Coordinator only (for aggregation purposes)
 
-**Content:** Same structure as artifacts, but represents only YOUR site's local model
+**Content:** Same structure as artifacts, but represents only YOUR site's local model. Includes model diagnostics.
 
-**Use case:** 
+**Use case:**
 - Compare local vs. aggregated model performance
 - Understand how federated learning improved results
 - Debug if aggregation isn't working as expected
+- Review model diagnostics (VIF, residuals, goodness-of-fit) per site
 
 ### Understanding File Names:**
 - Format: `{run_id}-{task_seq}-{round_number}-{type}`
@@ -401,8 +484,19 @@ Actual Negative     TN       FP
 |------|-------------|----------------|
 | **LogisticRegression** | Binary classification | CSV with features + binary label (0/1) |
 | **LinearRegression** | Continuous value prediction | CSV with features + continuous target |
+| **SvmRegression** | Support Vector Machine regression | CSV with features + continuous target |
 | **LogisticRegressionStats** | Statistical binary classification | CSV with features + binary label, min 30 samples |
 | **Ancova** | Group comparison with covariates | CSV with groups + covariates + outcome |
+| **OrdinalLogisticRegression** | Ordered categorical outcomes | CSV with features + ordinal label (0,1,2,...) |
+| **MixedEffectsLogisticRegression** | Clustered binary data | CSV with group ID + features + binary label |
+| **CoxProportionalHazards** | Survival analysis | CSV with features + time + event (0/1) |
+| **KaplanMeier** | Non-parametric survival | CSV with group + features + time + event |
+| **CensoredRegression** | Censored continuous outcomes (Tobit) | CSV with features + outcome + censoring (-1/0/1) |
+| **PoissonRegression** | Count data (event rates) | CSV with features + offset + count |
+| **NegativeBinomialRegression** | Overdispersed count data | CSV with features + offset + count |
+| **MultipleImputation** | Missing data handling (MICE) | CSV with features (may have NaN) + outcome |
+
+R versions of LogisticRegression, CoxPH, KaplanMeier, CensoredRegression, Poisson, NegBinomial, and MultipleImputation are also available (prefix model name with `R`, e.g., `RCoxProportionalHazards`, `RCensoredRegression`).
 
 ### Run States
 

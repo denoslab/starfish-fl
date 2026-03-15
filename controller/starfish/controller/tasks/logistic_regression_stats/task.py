@@ -29,6 +29,7 @@ from starfish.controller.file.file_utils import (
     downloaded_artifacts_url
 )
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.diagnostics import logistic_diagnostics
 from sklearn.model_selection import train_test_split
 import warnings
 
@@ -177,6 +178,10 @@ class LogisticRegressionStats(AbstractTask):
         self.logger.info(f'Pseudo R²: {prsquared:.4f}')
         self.logger.info(f'LLR p-value: {llr_pvalue:.6f}')
         
+        # Diagnostics
+        diagnostics = logistic_diagnostics(
+            self.X_with_const, self.y, result)
+
         return {
             "sample_size": int(self.sample_size * 0.8),
             "coef_": coef,
@@ -190,7 +195,8 @@ class LogisticRegressionStats(AbstractTask):
             "llr": llr,
             "llr_pvalue": llr_pvalue,
             "llf": llf,
-            "llnull": llnull
+            "llnull": llnull,
+            "diagnostics": diagnostics
         }
 
     def do_aggregate(self) -> bool:

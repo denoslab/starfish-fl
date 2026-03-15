@@ -1,0 +1,55 @@
+name: Deploy MkDocs to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'controller/starfish/controller/tasks/abstract_task.py'
+      - 'controller/starfish/controller/tasks/abstract_r_task.py'
+      - 'controller/starfish/controller/tasks/diagnostics.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install mkdocs-material mkdocstrings[python]
+          pip install numpy pandas scipy scikit-learn statsmodels lifelines
+          cd controller && pip install -e . || pip install django celery redis django-fsm || true
+
+      - name: Build MkDocs site
+        run: mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

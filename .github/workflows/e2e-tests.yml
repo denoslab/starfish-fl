@@ -1,0 +1,156 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # ── Build Docker images once and share across test jobs ───────────────────
+  build-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build router image
+        run: docker build -t starfish-router router/
+
+      - name: Build controller image
+        run: docker build -t starfish-controller controller/
+
+      - name: Save Docker images
+        run: docker save starfish-router starfish-controller | gzip > /tmp/e2e-images.tar.gz
+
+      - name: Upload Docker images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-docker-images
+          path: /tmp/e2e-images.tar.gz
+          retention-days: 1
+
+  # ── Run E2E tests in parallel using pre-built images ──────────────────────
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build-images
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - name: Python Logistic Regression
+            file: test_fl_workflow.py
+          - name: R Logistic Regression
+            file: test_r_fl_workflow.py
+          - name: Python Cox PH
+            file: test_cox_ph_workflow.py
+          - name: R Cox PH
+            file: test_r_cox_ph_workflow.py
+          - name: Python Kaplan-Meier
+            file: test_kaplan_meier_workflow.py
+          - name: R Kaplan-Meier
+            file: test_r_kaplan_meier_workflow.py
+          - name: Python Poisson
+            file: test_poisson_workflow.py
+          - name: R Poisson
+            file: test_r_poisson_workflow.py
+          - name: Python Negative Binomial
+            file: test_negative_binomial_workflow.py
+          - name: R Negative Binomial
+            file: test_r_negative_binomial_workflow.py
+          - name: Python Multiple Imputation
+            file: test_multiple_imputation_workflow.py
+          - name: R Multiple Imputation
+            file: test_r_multiple_imputation_workflow.py
+
+    name: "e2e (${{ matrix.test.name }})"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Load pre-built Docker images ──────────────────────────────────────
+
+      - name: Download Docker images artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-docker-images
+          path: /tmp
+
+      - name: Load Docker images
+        run: gunzip -c /tmp/e2e-images.tar.gz | docker load
+
+      # ── Start the E2E stack ───────────────────────────────────────────────
+
+      - name: Start E2E stack
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml up -d
+
+      # ── Wait for services to be healthy ───────────────────────────────────
+
+      - name: Wait for router to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/starfish/api/v1/sites/ \
+                 -u admin:1234 > /dev/null 2>&1; then
+              echo "Router is ready"
+              exit 0
+            fi
+            echo "Waiting for router ($i/30)..."
+            sleep 5
+          done
+          echo "Router did not become ready in time"
+          docker compose -f workbench/docker-compose.e2e.yml logs router
+          exit 1
+
+      - name: Wait for all three controllers to be ready
+        run: |
+          for port in 8001 8002 8003; do
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:${port}/controller/ > /dev/null 2>&1; then
+                echo "Controller on port $port is ready"
+                break
+              fi
+              echo "Waiting for controller:$port ($i/20)..."
+              sleep 5
+              if [ $i -eq 20 ]; then
+                echo "Controller on port $port did not become ready"
+                docker compose -f workbench/docker-compose.e2e.yml logs
+                exit 1
+              fi
+            done
+          done
+
+      # ── Install test dependencies ─────────────────────────────────────────
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install E2E test dependencies
+        working-directory: e2e
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      # ── Run E2E tests ─────────────────────────────────────────────────────
+
+      - name: Run E2E tests
+        working-directory: e2e
+        run: pytest ${{ matrix.test.file }} -v --timeout=300
+
+      # ── Collect logs on failure ────────────────────────────────────────────
+
+      - name: Collect service logs on failure
+        if: failure()
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml logs --tail=200
+
+      # ── Tear down ─────────────────────────────────────────────────────────
+
+      - name: Tear down E2E stack
+        if: always()
+        working-directory: workbench
+        run: docker compose -f docker-compose.e2e.yml down -v

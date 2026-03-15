@@ -8,6 +8,10 @@ import pandas as pd
 from starfish.controller.file.file_utils import gen_mid_artifacts_url, gen_all_mid_artifacts_url, gen_artifacts_url, \
     downloaded_artifacts_url
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.diagnostics import (
+    compute_vif, residual_summary, shapiro_wilk_test,
+    hat_matrix_diag, cooks_distance_summary
+)
 import sklearn.linear_model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -153,14 +157,30 @@ class LinearRegression(AbstractTask):
         r2 = r2_score(self.y_test, y_predict)
         self.logger.info(f'R² Score: {r2}')
 
+        # Diagnostics
+        residuals = self.y_test - y_predict
+        diagnostics = {}
+        try:
+            diagnostics['vif'] = compute_vif(self.X_train_scaled)
+            diagnostics['residual_summary'] = residual_summary(residuals)
+            diagnostics['shapiro_wilk'] = shapiro_wilk_test(residuals)
+            X_with_const = np.column_stack([
+                np.ones(len(self.X_test_scaled)), self.X_test_scaled])
+            h = hat_matrix_diag(X_with_const)
+            diagnostics['cooks_distance'] = cooks_distance_summary(
+                residuals, h, X_with_const.shape[1])
+        except Exception:
+            pass
+
         return {
             "sample_size": self.sample_size,
             "coef_": self.linearRegr.coef_.tolist(),
-            "intercept_": float(self.linearRegr.intercept_),  # intercept_ is scalar for linear regression
+            "intercept_": float(self.linearRegr.intercept_),
             "metric_mse": mse,
             "metric_rmse": rmse,
             "metric_mae": mae,
-            "metric_r2": r2
+            "metric_r2": r2,
+            "diagnostics": diagnostics
         }
 
     def do_aggregate(self) -> bool:

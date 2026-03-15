@@ -19,10 +19,11 @@ django-celery-beat = "^2.5.0"
 # for ML
 numpy = ">=1.26.0,<2.0.0"
 scikit-learn = ">=1.3.0"
-openml = "^0.14.1"
 # for statistical models
 statsmodels = ">=0.14.0"
 scipy = ">=1.11.0"
+# for survival analysis
+lifelines = ">=0.29.0"
 
 [tool.poetry.group.unet.dependencies]
 tensorflow = "2.15.1"

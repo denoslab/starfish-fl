@@ -1,0 +1,68 @@
+site_name: Starfish-FL
+site_description: An Agentic Federated Learning Framework
+site_url: https://denoslab.github.io/starfish-fl/
+repo_url: https://github.com/denoslab/starfish-fl
+repo_name: denoslab/starfish-fl
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [controller]
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 3
+            docstring_style: numpy
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide: user-guide.md
+  - CLI Reference: cli.md
+  - Tasks:
+      - Task Configuration: tasks/configuration.md
+      - Diagnostics Reference: tasks/diagnostics.md
+  - API Reference:
+      - AbstractTask: api/abstract-task.md
+      - AbstractRTask: api/abstract-r-task.md
+      - Diagnostics: api/diagnostics.md
+  - Architecture: architecture.md
+  - Contributing: contributing.md

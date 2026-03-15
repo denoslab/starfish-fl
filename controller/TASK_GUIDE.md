@@ -211,7 +211,26 @@ masks/
 - Masks are binarized to values `0/1` after resizing.
 
 **Configuration Example:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "FederatedUNet",
+    "config": {
+      "total_round": 1,
+      "current_round": 1,
+      "local_epochs": 1,
+      "architecture": "resnet50",
+      "type_Unet": "unet",
+      "patch_size": 64,
+      "batch_size": 1,
+      "learning_rate": 0.0001
+    }
+  }
+]
+```
 
+> **Note**: `resnet50` with `patch_size: 64` requires ~3.2 GB VRAM. On GPUs with less than 4 GB (e.g. GTX 1650), use `"architecture": "mobilenetv2"` and `"patch_size": 32` instead.
 
 ### Cox Proportional Hazards
 
@@ -245,32 +264,6 @@ masks/
 - Concordance index (C-statistic)
 
 **Aggregation:** Inverse-variance weighted meta-analysis of log-hazard ratios
-
-### FederatedUNet Example
-
-For image segmentation tasks using the FederatedUNet model:
-
-```json
-[
-  {
-    "seq": 1,
-    "model": "FederatedUNet",
-    "config": {
-      "total_round": 1,
-      "current_round": 1,
-      "local_epochs": 1,
-      "architecture": "resnet50",
-      "type_Unet": "unet",
-      "patch_size": 64,
-      "batch_size": 1,
-      "learning_rate": 0.0001
-    }
-  }
-]
-```
-
-> **Note**: `resnet50` with `patch_size: 64` requires ~3.2 GB VRAM. On GPUs with less than 4 GB (e.g. GTX 1650), use `"architecture": "mobilenetv2"` and `"patch_size": 32` instead.
-
 
 ### R Cox Proportional Hazards
 

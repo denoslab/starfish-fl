@@ -240,6 +240,9 @@ Router:
 
 ## Supported ML Tasks
 
+- **FederatedUNet**: Federated image segmentation using UNet with FedAvg aggregation.
+
+See [TASK_GUIDE.md](controller/TASK_GUIDE.md) for configuration details.
 Every task below is available in **both Python and R** (where noted), so researchers and data scientists can work in whichever language they prefer.
 
 ### Classification & Regression

@@ -28,7 +28,8 @@ from starfish.controller.file.file_utils import load_image_dataset_by_run
 # Fixtures
 # ---------------------------------------------------------------------------
 
-PATCH_SIZE = 4
+# Minimum 32x32 required by encoder backbones (mobilenetv2, resnet50)
+PATCH_SIZE = 32
 N_IMAGES = 2
 
 

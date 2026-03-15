@@ -332,6 +332,16 @@ class ArtifactSerializationTest(TestCase):
 
 class ValidateTest(TestCase):
 
+    def setUp(self):
+        self.tmp_dir = tempfile.mkdtemp()
+        self._patcher = patch(
+            'starfish.controller.file.file_utils.base_folder', self.tmp_dir)
+        self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
     @patch.object(FederatedUNet, 'is_first_round', return_value=True)
     def test_first_round_always_valid(self, _):
         task = FederatedUNet(make_run())

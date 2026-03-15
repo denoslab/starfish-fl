@@ -73,7 +73,7 @@ RUN pip3 install --no-cache-dir poetry
 COPY poetry.lock pyproject.toml /app/
 
 # Install without dev dependencies, then remove poetry/pip to save space
-RUN poetry install --no-root --no-cache --without dev \
+RUN poetry install --no-root --no-cache --without dev,unet \
     && pip3 uninstall -y poetry virtualenv pip \
     && rm -rf /usr/local/lib/python3.10/site-packages/poetry \
               /usr/local/lib/python3.10/site-packages/virtualenv \

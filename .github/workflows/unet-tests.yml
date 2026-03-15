@@ -61,7 +61,7 @@ jobs:
         run: poetry install --no-root --with unet
 
       - name: Install test runner
-        run: pip install pytest pytest-timeout
+        run: poetry run pip install pytest pytest-timeout
 
       - name: Run UNet integration test (CPU, tiny data)
         run: poetry run python3 -m pytest tests/test_unet_integration.py -v --timeout=300

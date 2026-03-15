@@ -144,10 +144,31 @@ def load_dataset_by_run(run_id):
 
 
 def _is_supported_image(file_name: str) -> bool:
+    """Check whether a filename has a supported image extension."""
     return file_name.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))
 
 
 def load_image_dataset_by_run(run_id, patch_size):
+    """
+    Load an image segmentation dataset from the run's uploaded zip file.
+
+    Expects a zip archive with ``images/`` and ``masks/`` directories containing
+    matching image files. Images are converted to grayscale and normalized to
+    [0, 1]. Masks are binarized at threshold 127.
+
+    Parameters
+    ----------
+    run_id : str
+        The run identifier used to locate the dataset zip.
+    patch_size : int
+        Target dimension to resize all images and masks to (square).
+
+    Returns
+    -------
+    tuple of (ndarray, ndarray) or (None, None)
+        ``(images, masks)`` arrays with shape ``(N, patch_size, patch_size)``
+        and dtype float32, or ``(None, None)`` on failure.
+    """
     dataset_zip_path = gen_dataset_url(run_id) + dataset_name
     try:
         from PIL import Image
@@ -174,6 +195,7 @@ def load_image_dataset_by_run(run_id, patch_size):
                 logger.warning("Image/mask count mismatch: {} vs {}".format(len(images), len(masks)))
                 return None, None
 
+            # Verify paired filenames match after sorting
             image_names = [Path(p).name for p in images]
             mask_names = [Path(p).name for p in masks]
             if image_names != mask_names:

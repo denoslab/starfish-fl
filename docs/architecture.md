@@ -21,7 +21,7 @@ Site B (Controller)  ──┘
 | **Site** | A participant node with a unique UUID, connects via heartbeat |
 | **Project** | Defines FL tasks (stored as JSON), owned by a coordinator site |
 | **Run** | Execution instance of a project for one batch |
-| **Task** | Individual ML operation within a project (e.g., `CoxProportionalHazards`) |
+| **Task** | Individual ML operation within a project (e.g., `CoxProportionalHazards`, `FederatedUNet`) |
 
 ## Data Model (Router)
 

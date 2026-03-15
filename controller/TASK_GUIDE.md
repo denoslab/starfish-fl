@@ -186,6 +186,52 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 
 **Example Dataset:** `examples/mixed_effects_logistic_sample.csv`
 
+### FederatedUNet
+
+**Description:** Federated image segmentation using UNet with FedAvg aggregation.
+
+**Use Case:** Multi-site medical image segmentation where each site trains locally and only weights are exchanged.
+
+**File Location:** `starfish/controller/tasks/federated_unet/task.py`
+
+**Dataset Requirements:** Upload a zip file per run via `/controller/runs/dataset/` with this structure:
+
+```text
+images/
+  001.png
+  002.png
+masks/
+  001.png
+  002.png
+```
+
+- Supported image formats: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`
+- Image and mask filenames must match after alphabetical sort.
+- Images are converted to grayscale and resized to `patch_size x patch_size`.
+- Masks are binarized to values `0/1` after resizing.
+
+**Configuration Example:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "FederatedUNet",
+    "config": {
+      "total_round": 1,
+      "current_round": 1,
+      "local_epochs": 1,
+      "architecture": "resnet50",
+      "type_Unet": "unet",
+      "patch_size": 64,
+      "batch_size": 1,
+      "learning_rate": 0.0001
+    }
+  }
+]
+```
+
+> **Note**: `resnet50` with `patch_size: 64` requires ~3.2 GB VRAM. On GPUs with less than 4 GB (e.g. GTX 1650), use `"architecture": "mobilenetv2"` and `"patch_size": 32` instead.
+
 ### Cox Proportional Hazards
 
 **Description:** Time-to-event analysis using Cox Proportional Hazards regression
@@ -524,6 +570,7 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 - Missing values represented as empty cells in CSV
 
 **Example Configuration:**
+
 ```json
 [
   {

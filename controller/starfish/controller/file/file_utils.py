@@ -3,6 +3,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,10 @@ def gen_mid_artifacts_url(run_id, task_seq, round_seq):
     return gen_url(run_id, task_seq, round_seq, file_name=mid_artifacts_name)
 
 
+def gen_binary_mid_artifacts_url(run_id, task_seq, round_seq):
+    return gen_mid_artifacts_url(run_id, task_seq, round_seq)
+
+
 def gen_all_mid_artifacts_url(project_id, batch):
     if not project_id or not batch:
         return None
@@ -69,6 +74,10 @@ def downloaded_artifacts_url(run_id, task_seq, round_seq):
     if not run_id or not task_seq or not round_seq:
         return None
     return f"{base_folder}/{artifacts_name}/{run_id}/{task_seq}/{round_seq}/"
+
+
+def gen_binary_artifacts_url(run_id, task_seq, round_seq):
+    return gen_artifacts_url(run_id, task_seq, round_seq)
 
 
 def download_all_mid_artifacts(project_id, batch, content):
@@ -110,6 +119,17 @@ def read_file_from_url(url):
     return None
 
 
+def read_binary_file_from_url(url):
+    if url:
+        try:
+            file_obj = open(url, 'rb')
+            return file_obj
+        except FileNotFoundError:
+            logger.warning("File not found at {}".format(url))
+            return None
+    return None
+
+
 def load_dataset_by_run(run_id):
     combined_csv_file = read_file_from_url(gen_dataset_url(run_id) + 'dataset')
     if combined_csv_file:
@@ -120,4 +140,88 @@ def load_dataset_by_run(run_id):
             return X, y
         except Exception as e:
             logger.warning("Failed to read data set due to {}".format(e))
+    return None, None
+
+
+def _is_supported_image(file_name: str) -> bool:
+    """Check whether a filename has a supported image extension."""
+    return file_name.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))
+
+
+def load_image_dataset_by_run(run_id, patch_size):
+    """
+    Load an image segmentation dataset from the run's uploaded zip file.
+
+    Expects a zip archive with ``images/`` and ``masks/`` directories containing
+    matching image files. Images are converted to grayscale and normalized to
+    [0, 1]. Masks are binarized at threshold 127.
+
+    Parameters
+    ----------
+    run_id : str
+        The run identifier used to locate the dataset zip.
+    patch_size : int
+        Target dimension to resize all images and masks to (square).
+
+    Returns
+    -------
+    tuple of (ndarray, ndarray) or (None, None)
+        ``(images, masks)`` arrays with shape ``(N, patch_size, patch_size)``
+        and dtype float32, or ``(None, None)`` on failure.
+    """
+    dataset_zip_path = gen_dataset_url(run_id) + dataset_name
+    try:
+        from PIL import Image
+    except Exception as e:
+        logger.warning("Pillow is not available due to {}".format(e))
+        return None, None
+
+    try:
+        with zipfile.ZipFile(dataset_zip_path, 'r') as zf:
+            images = sorted([
+                name for name in zf.namelist()
+                if name.startswith('images/') and _is_supported_image(name)
+            ])
+            masks = sorted([
+                name for name in zf.namelist()
+                if name.startswith('masks/') and _is_supported_image(name)
+            ])
+
+            if not images or not masks:
+                logger.warning("Dataset zip missing images/ or masks/ content")
+                return None, None
+
+            if len(images) != len(masks):
+                logger.warning("Image/mask count mismatch: {} vs {}".format(len(images), len(masks)))
+                return None, None
+
+            # Verify paired filenames match after sorting
+            image_names = [Path(p).name for p in images]
+            mask_names = [Path(p).name for p in masks]
+            if image_names != mask_names:
+                logger.warning("Image/mask filenames do not align after sorting")
+                return None, None
+
+            image_stack = []
+            mask_stack = []
+            for image_entry, mask_entry in zip(images, masks):
+                with zf.open(image_entry) as image_fp, zf.open(mask_entry) as mask_fp:
+                    image = Image.open(image_fp).convert('L').resize((patch_size, patch_size), Image.BILINEAR)
+                    mask = Image.open(mask_fp).convert('L').resize((patch_size, patch_size), Image.NEAREST)
+
+                    image_arr = np.asarray(image, dtype=np.float32) / 255.0
+                    mask_arr = (np.asarray(mask, dtype=np.uint8) > 127).astype(np.float32)
+
+                    image_stack.append(image_arr)
+                    mask_stack.append(mask_arr)
+
+            return np.asarray(image_stack, dtype=np.float32), np.asarray(mask_stack, dtype=np.float32)
+
+    except FileNotFoundError:
+        logger.warning("Dataset zip not found at {}".format(dataset_zip_path))
+    except zipfile.BadZipFile:
+        logger.warning("Dataset at {} is not a valid zip file".format(dataset_zip_path))
+    except Exception as e:
+        logger.warning("Failed to load image dataset due to {}".format(e))
+
     return None, None

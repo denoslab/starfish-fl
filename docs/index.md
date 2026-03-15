@@ -44,6 +44,7 @@ Starfish-FL is a mono-repo with three components:
 | Poisson Regression | `PoissonRegression` | `RPoissonRegression` |
 | Negative Binomial Regression | `NegativeBinomialRegression` | `RNegativeBinomialRegression` |
 | Multiple Imputation (MICE) | `MultipleImputation` | `RMultipleImputation` |
+| Federated UNet (Image Segmentation) | `FederatedUNet` | -- |
 
 ## Quick Links
 

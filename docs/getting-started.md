@@ -87,6 +87,7 @@ poetry run starfish --help
 | Task Queue | Celery + Redis |
 | Databases | PostgreSQL (Router), SQLite (Controller) |
 | Python ML | scikit-learn, NumPy, Pandas, statsmodels, scipy, lifelines |
+| Image Segmentation (optional) | TensorFlow 2.15, Keras, segmentation-models, Pillow |
 | R Runtime | R 4.x with `jsonlite`, `survival`, `mice`, `MASS` |
 | Containers | Docker, Docker Compose |
 | Dependency Management | Poetry |

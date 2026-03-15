@@ -32,10 +32,13 @@ When you first access the controller at `http://localhost:8001/controller/`, you
 
 ## Dataset Requirements
 
-- **Format**: CSV (comma-separated values)
-- **Header**: No header row -- data starts from the first line
+- **Format**: CSV (comma-separated values) for tabular tasks; zip archive for image tasks
+- **Header**: No header row -- data starts from the first line (CSV tasks)
 - **Encoding**: UTF-8
 - **Values**: Numeric only, no missing values (except MICE tasks)
+
+!!! info "Image Segmentation (FederatedUNet)"
+    FederatedUNet requires a **zip file** containing `images/` and `masks/` directories with matching filenames. See [Task Configuration](tasks/configuration.md) for details.
 
 !!! warning "Critical"
     All sites must have **identical feature sets** (same columns in same order). Use `starfish/preprocess_dataset.py` to ensure consistency.
@@ -60,6 +63,7 @@ After a successful run, you can download:
 | Survival Models | Hazard ratios, concordance index |
 | Censored Regression | Coefficients, sigma, log-likelihood, censoring summary |
 | Count Data | Rate ratios, deviance, dispersion parameter |
+| Image Segmentation | Loss, IoU score, F1 score |
 
 ### Model Diagnostics
 

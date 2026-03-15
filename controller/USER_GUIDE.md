@@ -50,7 +50,7 @@ After registration, your site will be able to participate in federated learning 
 **Required information:**
 - **Project Name**: Descriptive name (e.g., "Diabetes Prediction Study")
 - **Project Description**: What the project is about
-- **Task Configuration**: See [TASK_GUIDE.md](TASK_GUIDE.md) for all 20 available models
+- **Task Configuration**: See [TASK_GUIDE.md](TASK_GUIDE.md) for all available models
 
 **Process:**
 1. Fill in project details
@@ -179,6 +179,28 @@ group1,group2,...,covariate1,covariate2,...,outcome
 - **Minimum 30 samples** required
 
 **Example:** Testing treatment effects (groups) while controlling for age and baseline measurements (covariates)
+
+### FederatedUNet Dataset Format
+
+For image segmentation tasks using FederatedUNet:
+
+**Structure:** A **zip file** (not CSV) containing two directories:
+```
+images/
+  001.png
+  002.png
+masks/
+  001.png
+  002.png
+```
+
+**Requirements:**
+- Supported image formats: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`
+- Image and mask filenames must match after alphabetical sorting
+- Images are converted to grayscale and resized to `patch_size x patch_size`
+- Masks are binarized (pixel > 127 → 1, otherwise → 0)
+
+**Upload:** Upload the zip file via the controller's dataset upload endpoint for each run.
 
 ### Preprocessing Guidelines
 
@@ -495,6 +517,7 @@ Actual Negative     TN       FP
 | **PoissonRegression** | Count data (event rates) | CSV with features + offset + count |
 | **NegativeBinomialRegression** | Overdispersed count data | CSV with features + offset + count |
 | **MultipleImputation** | Missing data handling (MICE) | CSV with features (may have NaN) + outcome |
+| **FederatedUNet** | Image segmentation (UNet + FedAvg) | Zip of `images/` + `masks/` directories |
 
 R versions of LogisticRegression, CoxPH, KaplanMeier, CensoredRegression, Poisson, NegBinomial, and MultipleImputation are also available (prefix model name with `R`, e.g., `RCoxProportionalHazards`, `RCensoredRegression`).
 

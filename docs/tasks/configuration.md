@@ -67,6 +67,12 @@ Each task must have:
 | `MultipleImputation` | MICE with Rubin's rules | Features (may have NaN) + outcome |
 | `RMultipleImputation` | R version (mice::mice) | Same |
 
+### Image Segmentation
+
+| Model Name | Description | Dataset Format |
+|-----------|-------------|----------------|
+| `FederatedUNet` | UNet with FedAvg aggregation | Zip of `images/` + `masks/` directories |
+
 ## Required Config Parameters
 
 | Parameter | Description |
@@ -85,6 +91,10 @@ Each task must have:
 | `fe_p` | Mixed Effects Logistic | Prior SD for fixed effects (default: 2.0) |
 | `m` | Multiple Imputation | Number of imputed datasets (default: 5) |
 | `max_iter` | Multiple Imputation | Max MICE iterations (default: 10) |
+| `patch_size` | FederatedUNet | Image resize dimension (default: 64) |
+| `architecture` | FederatedUNet | Encoder backbone, e.g. `resnet50`, `mobilenetv2` (default: resnet50) |
+| `type_Unet` | FederatedUNet | Segmentation architecture type (default: unet) |
+| `batch_size` | FederatedUNet | Training mini-batch size (default: 8) |
 
 ## Example Configurations
 
@@ -110,6 +120,12 @@ Each task must have:
 
     ```json
     [{"seq": 1, "model": "MultipleImputation", "config": {"total_round": 1, "current_round": 1, "m": 5, "max_iter": 10}}]
+    ```
+
+=== "FederatedUNet"
+
+    ```json
+    [{"seq": 1, "model": "FederatedUNet", "config": {"total_round": 1, "current_round": 1, "local_epochs": 1, "architecture": "resnet50", "type_Unet": "unet", "patch_size": 64, "batch_size": 1, "learning_rate": 0.0001}}]
     ```
 
 ## Writing R-Based Tasks

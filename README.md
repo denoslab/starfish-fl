@@ -227,6 +227,7 @@ Router:
 - **ANCOVA**: Analysis of Covariance for statistical analysis
 - **Ordinal Logistic Regression**: Proportional odds model for ordered categorical outcomes
 - **Mixed Effects Logistic Regression**: Multilevel logistic regression for clustered/hierarchical binary data
+- **FederatedUNet**: Federated image segmentation using UNet with FedAvg aggregation.
 
 See [TASK_GUIDE.md](controller/TASK_GUIDE.md) for configuration details.
 

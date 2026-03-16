@@ -1,0 +1,67 @@
+name: UNet Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'controller/starfish/controller/tasks/federated_unet/**'
+      - 'controller/starfish/controller/file/file_utils.py'
+      - 'controller/pyproject.toml'
+      - '.github/workflows/unet-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'controller/starfish/controller/tasks/federated_unet/**'
+      - 'controller/starfish/controller/file/file_utils.py'
+      - 'controller/pyproject.toml'
+      - '.github/workflows/unet-tests.yml'
+
+jobs:
+  unet-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      CELERY_BROKER_URL: redis://localhost:6379
+      CELERY_RESULT_BACKEND: redis://localhost:6379
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      SM_FRAMEWORK: tf.keras
+      TF_USE_LEGACY_KERAS: "1"
+      DJANGO_SETTINGS_MODULE: starfish.settings
+      # Suppress TF warnings in CI
+      TF_CPP_MIN_LOG_LEVEL: "2"
+
+    defaults:
+      run:
+        working-directory: controller
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies (main + unet groups)
+        run: poetry install --no-root --with unet
+
+      - name: Install test runner
+        run: poetry run pip install pytest pytest-timeout
+
+      - name: Run UNet integration test (CPU, tiny data)
+        run: poetry run python3 -m pytest tests/test_unet_integration.py -v --timeout=300

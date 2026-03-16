@@ -28,7 +28,17 @@ services:
       - '8001:8000'
     env_file:
       - ../config/controller.env
+    environment:
+      SM_FRAMEWORK: tf.keras
+      TF_USE_LEGACY_KERAS: "1"
     command: bash -c "cron && python3 manage.py runserver 0.0.0.0:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
@@ -42,7 +52,17 @@ services:
       - redis
     env_file:
       - ../config/controller.env
+    environment:
+      SM_FRAMEWORK: tf.keras
+      TF_USE_LEGACY_KERAS: "1"
     entrypoint: ["celery", "-A", "starfish", "beat", "-l", "DEBUG"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
@@ -56,7 +76,17 @@ services:
       - redis
     env_file:
       - ../config/controller.env
+    environment:
+      SM_FRAMEWORK: tf.keras
+      TF_USE_LEGACY_KERAS: "1"
     entrypoint: ["celery", "-A", "starfish", "worker", "-l", "DEBUG", "-Q", "starfish.run"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
 
@@ -70,7 +100,17 @@ services:
       - redis
     env_file:
       - ../config/controller.env
+    environment:
+      SM_FRAMEWORK: tf.keras
+      TF_USE_LEGACY_KERAS: "1"
     entrypoint: ["celery", "-A", "starfish", "worker", "-l", "DEBUG", "--concurrency=1", "-Q", "starfish.processor"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
 

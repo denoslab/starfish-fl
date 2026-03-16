@@ -39,6 +39,9 @@ This is the easiest way to get started. Docker Compose will set up both the appl
 
 #### Setup Instructions
 
+!!! note "FederatedUNet Support"
+    The default image does not include TensorFlow. To enable image segmentation tasks, build with `docker-compose build --build-arg INSTALL_UNET=true`.
+
 1. **Configure environment variables**
    
    Copy `.env.example` to `.env` and update the values:

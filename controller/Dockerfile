@@ -67,13 +67,20 @@ RUN apt-get update \
 ENV R_LIBS_USER=/opt/R/libs
 COPY --from=r-builder /opt/R/libs /opt/R/libs
 
+# Enable UNet/image segmentation support (adds TensorFlow + CUDA libs, ~3 GB)
+ARG INSTALL_UNET=false
+
 # Install Poetry and Python dependencies (cached unless lock file changes)
 RUN pip3 install --no-cache-dir poetry
 
 COPY poetry.lock pyproject.toml /app/
 
-# Install without dev dependencies, then remove poetry/pip to save space
-RUN poetry install --no-root --no-cache --without dev,unet \
+# Install without dev dependencies; include unet group only when opted in
+RUN if [ "$INSTALL_UNET" = "true" ]; then \
+      poetry install --no-root --no-cache --without dev; \
+    else \
+      poetry install --no-root --no-cache --without dev,unet; \
+    fi \
     && pip3 uninstall -y poetry virtualenv pip \
     && rm -rf /usr/local/lib/python3.10/site-packages/poetry \
               /usr/local/lib/python3.10/site-packages/virtualenv \

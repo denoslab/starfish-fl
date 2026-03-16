@@ -194,6 +194,8 @@ Minimum 30 samples required. Minimum 5 groups recommended.
 
 **File Location:** `starfish/controller/tasks/federated_unet/task.py`
 
+**Docker:** Requires building the controller image with `--build-arg INSTALL_UNET=true`. The default image does not include TensorFlow.
+
 **Dataset Requirements:** Upload a zip file per run via `/controller/runs/dataset/` with this structure:
 
 ```text

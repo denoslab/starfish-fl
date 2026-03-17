@@ -4,6 +4,7 @@
 
 [![Controller Tests](https://github.com/denoslab/starfish-fl/actions/workflows/controller-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/controller-tests.yml)
 [![Router Tests](https://github.com/denoslab/starfish-fl/actions/workflows/router-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/router-tests.yml)
+[![CLI Agent Tests](https://github.com/denoslab/starfish-fl/actions/workflows/cli-agent-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/cli-agent-tests.yml)
 [![E2E Tests](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml/badge.svg)](https://github.com/denoslab/starfish-fl/actions/workflows/e2e-tests.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
@@ -29,7 +30,7 @@ Starfish-FL is a complete federated learning platform consisting of three main c
 
 - **[Controller](controller/)** - Site management and FL task execution
 - **[Router](router/)** - Central coordination and message routing
-- **[CLI](cli/)** - Typer-based CLI (`starfish` command) for human and AI agent use
+- **[CLI](cli/)** - Typer-based CLI (`starfish` command) for human and AI agent use, with built-in LLM agent for autonomous orchestration
 - **[Workbench](workbench/)** - Development and testing environment
 
 ### Architecture
@@ -185,6 +186,7 @@ make down        # Stop and remove containers
 
 - **[Controller User Guide](controller/USER_GUIDE.md)** - Comprehensive guide for using the Controller web interface
 - **[Task Configuration Guide](controller/TASK_GUIDE.md)** - How to configure FL tasks and models
+- **[CLI Agent Guide](cli/README.md#ai-agent)** - Using the AI agent for autonomous FL orchestration
 
 ## Development
 
@@ -210,6 +212,13 @@ docker exec -it starfish-router poetry run python3 manage.py test
 ```bash
 cd controller
 docker exec -it starfish-controller poetry run python3 manage.py test
+```
+
+**CLI Agent Tests:**
+```bash
+cd cli
+poetry install --extras agent
+poetry run pytest tests/ -v
 ```
 
 ## Configuration

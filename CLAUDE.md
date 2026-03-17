@@ -8,7 +8,7 @@ Starfish-FL is an agentic federated learning (FL) framework organized as a mono 
 
 - **`controller/`** — Django app installed on every site; handles local ML training, Celery task queuing, and a web UI (port 8001)
 - **`router/`** — Django REST Framework app acting as central coordination server; manages global state, message forwarding, and artifact storage (port 8000)
-- **`cli/`** — Typer-based CLI (`starfish` command) that replicates web portal functionality for human and AI agent use
+- **`cli/`** — Typer-based CLI (`starfish` command) that replicates web portal functionality for human and AI agent use; includes an LLM agent module (`cli/starfish_cli/agent/`) for autonomous FL orchestration via Claude tool use
 - **`workbench/`** — Docker Compose orchestration for running all components together in development
 
 ## Commands
@@ -44,6 +44,9 @@ cd controller && python3 manage.py test
 # Via Docker
 docker exec -it starfish-router poetry run python3 manage.py test
 docker exec -it starfish-controller poetry run python3 manage.py test
+
+# CLI Agent tests
+cd cli && poetry install --extras agent && poetry run pytest tests/ -v
 ```
 
 ### Local Development Without Docker

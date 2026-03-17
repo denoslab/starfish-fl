@@ -94,6 +94,50 @@ poetry run starfish run status --project-id 1
 poetry run starfish artifact download --run-id 1 --type artifacts
 ```
 
+## AI Agent
+
+The CLI includes an AI agent that can autonomously orchestrate FL experiments using natural language. It wraps all CLI commands as LLM tools and uses Claude to plan and execute multi-step workflows.
+
+### Setup
+
+```bash
+# Install with agent dependencies
+poetry install --extras agent
+
+# Set your Anthropic API key
+export ANTHROPIC_API_KEY=your-key-here
+```
+
+### agent -- AI-driven FL orchestration
+
+| Command | Description |
+|---------|-------------|
+| `starfish agent run` | Run the AI agent with a natural language goal |
+| `starfish agent tools` | List all available agent tools and their schemas |
+
+### Agent Examples
+
+```bash
+# Run the agent with a natural language goal
+poetry run starfish agent run "Register two sites and create a logistic regression project"
+
+# Verbose mode shows tool calls and results
+poetry run starfish agent run "Check status of project 1" --verbose
+
+# List available tools in JSON format (useful for other LLM frameworks)
+poetry run starfish agent tools --json
+```
+
+### Agent Options
+
+| Option | Description |
+|--------|-------------|
+| `--model` / `-m` | Anthropic model to use (default: `claude-sonnet-4-6`) |
+| `--api-key` / `-k` | Anthropic API key (default: `ANTHROPIC_API_KEY` env var) |
+| `--max-turns` | Maximum agent turns (default: 50) |
+| `--verbose` / `-v` | Show tool calls and results |
+| `--json` | Output full conversation as JSON |
+
 ## JSON Output
 
 All commands support `--json` for machine-readable output, making it easy for AI agents to parse responses.

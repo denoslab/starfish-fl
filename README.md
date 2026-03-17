@@ -143,6 +143,7 @@ The Router (Routing Server) maintains global state and coordinates communication
 - Persistent storage for administrative data
 - Support for end-to-end encryption
 - Automated health checks via cron jobs
+- Embedded LLM agent for adaptive aggregation, smart scheduling, and failure triage (opt-in per project)
 
 **Standalone Setup:**
 

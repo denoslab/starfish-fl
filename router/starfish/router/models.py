@@ -50,6 +50,8 @@ class Project(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     tasks = models.JSONField(encoder=None, decoder=None, default=[])
     batch = models.IntegerField()
+    agent_config = models.JSONField(default=dict, blank=True)
+    agent_log = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(editable=False)
     updated_at = models.DateTimeField()
 
@@ -139,6 +141,8 @@ class Run(models.Model):
         choices=RunStatus.choices, default=RunStatus.STANDBY, protected=True)
     logs = models.JSONField(encoder=None, decoder=None, default=[])
     artifacts = models.JSONField(encoder=None, decoder=None, default=[])
+    agent_advice = models.JSONField(default=dict, blank=True)
+    agent_diagnosis = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(editable=False)
     updated_at = models.DateTimeField()
 

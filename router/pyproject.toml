@@ -14,7 +14,10 @@ python-dotenv = "^1.0.0"
 psycopg2-binary = "^2.9.6"
 django-fsm = "^2.8.1"
 django-extensions = "^3.2.3"
+anthropic = {version = "^0.52", optional = true}
 
+[tool.poetry.extras]
+agent = ["anthropic"]
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"

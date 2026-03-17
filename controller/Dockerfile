@@ -75,8 +75,9 @@ RUN pip3 install --no-cache-dir poetry
 
 COPY poetry.lock pyproject.toml /app/
 
-# Install without dev dependencies; include unet group only when opted in
-RUN if [ "$INSTALL_UNET" = "true" ]; then \
+# Regenerate lock if pyproject.toml changed, then install
+RUN poetry lock \
+    && if [ "$INSTALL_UNET" = "true" ]; then \
       poetry install --no-root --no-cache --without dev; \
     else \
       poetry install --no-root --no-cache --without dev,unet; \

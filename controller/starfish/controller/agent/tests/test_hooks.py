@@ -6,8 +6,9 @@ from django.test import TestCase
 
 from starfish.controller.agent.hooks import TaskAgentHooks
 
-# Patch targets — the strategy functions called inside hooks
-_ENGINE = "starfish.controller.agent.engine.query_llm"
+# Patch where query_llm is looked up — hooks imports it at module level,
+# so we must patch it in the hooks namespace, not the engine namespace.
+_ENGINE = "starfish.controller.agent.hooks.query_llm"
 
 
 class TestTaskAgentHooksInit(TestCase):

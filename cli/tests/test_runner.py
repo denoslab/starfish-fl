@@ -1,5 +1,5 @@
 """
-Tests for the agent CLI runner (starfish agent run/tools commands).
+Tests for the agent CLI runner (starfish agent run/tools/experiment commands).
 """
 
 import json
@@ -33,6 +33,21 @@ class TestToolsCommand:
         assert result.exit_code == 0
         assert "Starfish Agent Tools" in result.output
         assert "starfish_site_info" in result.output
+
+    def test_tools_all_json_output(self):
+        result = runner.invoke(app, ["tools", "--json", "--all"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 20
+        names = {t["name"] for t in data}
+        assert "analyze_dataset" in names
+        assert "recommend_task" in names
+
+    def test_tools_all_table_output(self):
+        result = runner.invoke(app, ["tools", "--all"])
+        assert result.exit_code == 0
+        assert "all" in result.output.lower()
+        assert "analyze_dataset" in result.output
 
 
 class TestRunCommand:
@@ -112,5 +127,107 @@ class TestRunCommand:
         mock_extract.return_value = ""
 
         result = runner.invoke(app, ["run", "test", "--api-key", "key"])
+        assert result.exit_code == 0
+        assert "completed without a final text response" in result.output
+
+
+class TestExperimentCommand:
+    """Test `starfish agent experiment` command."""
+
+    def test_experiment_without_api_key_fails(self):
+        with patch.dict("os.environ", {}, clear=True):
+            result = runner.invoke(app, ["experiment", "test experiment"])
+            assert result.exit_code == 1
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_with_api_key(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = "Experiment completed."
+
+        result = runner.invoke(app, [
+            "experiment", "analyze data.csv and run FL", "--api-key", "test-key"
+        ])
+        assert result.exit_code == 0
+        assert "Experiment completed." in result.output
+        mock_loop.assert_called_once()
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_default_max_turns(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = "Done."
+
+        runner.invoke(app, [
+            "experiment", "test", "--api-key", "key"
+        ])
+
+        call_kwargs = mock_loop.call_args
+        assert call_kwargs.kwargs["max_turns"] == 100
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_uses_experiment_prompt(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = "Done."
+
+        runner.invoke(app, [
+            "experiment", "test", "--api-key", "key"
+        ])
+
+        call_kwargs = mock_loop.call_args
+        system_prompt = call_kwargs.kwargs["system_prompt"]
+        assert "Autonomous Experiment Mode" in system_prompt
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_uses_all_tools(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = "Done."
+
+        runner.invoke(app, [
+            "experiment", "test", "--api-key", "key"
+        ])
+
+        call_kwargs = mock_loop.call_args
+        tools = call_kwargs.kwargs["tools"]
+        assert len(tools) == 20
+        tool_names = {t["name"] for t in tools}
+        assert "analyze_dataset" in tool_names
+        assert "starfish_site_info" in tool_names
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_verbose(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = "Done."
+
+        result = runner.invoke(app, [
+            "experiment", "test", "--api-key", "key", "--verbose"
+        ])
+        assert result.exit_code == 0
+        assert "Experiment goal: test" in result.output
+        assert "autonomous experiment" in result.output
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    def test_experiment_json_output(self, mock_loop):
+        mock_loop.return_value = [
+            {"role": "user", "content": "test"},
+        ]
+
+        result = runner.invoke(app, [
+            "experiment", "test", "--api-key", "key", "--json"
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+
+    @patch(f"{_AGENT_MOD}.run_agent_loop")
+    @patch(f"{_AGENT_MOD}.extract_final_response")
+    def test_experiment_empty_response(self, mock_extract, mock_loop):
+        mock_loop.return_value = []
+        mock_extract.return_value = ""
+
+        result = runner.invoke(app, ["experiment", "test", "--api-key", "key"])
         assert result.exit_code == 0
         assert "completed without a final text response" in result.output

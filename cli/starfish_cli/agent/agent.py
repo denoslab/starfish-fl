@@ -26,6 +26,8 @@ def run_agent_loop(
     api_key: str | None = None,
     max_turns: int = MAX_TURNS,
     verbose: bool = False,
+    system_prompt: str | None = None,
+    tools: list[dict] | None = None,
 ) -> list[dict]:
     """
     Run the agent loop to accomplish a user-specified goal.
@@ -44,6 +46,10 @@ def run_agent_loop(
         Maximum number of LLM turns before stopping.
     verbose : bool
         If True, print each tool call and result.
+    system_prompt : str | None
+        Custom system prompt. If None, uses the default SYSTEM_PROMPT.
+    tools : list[dict] | None
+        Custom tool schemas. If None, uses get_tool_schemas() (CLI tools only).
 
     Returns
     -------
@@ -53,15 +59,16 @@ def run_agent_loop(
     if client is None:
         client = create_client(api_key)
 
-    tools = get_tool_schemas()
+    effective_prompt = system_prompt if system_prompt is not None else SYSTEM_PROMPT
+    effective_tools = tools if tools is not None else get_tool_schemas()
     messages = [{"role": "user", "content": goal}]
 
     for turn in range(max_turns):
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            tools=tools,
+            system=effective_prompt,
+            tools=effective_tools,
             messages=messages,
         )
 

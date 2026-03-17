@@ -30,7 +30,7 @@ Starfish-FL is a complete federated learning platform consisting of three main c
 
 - **[Controller](controller/)** - Site management and FL task execution
 - **[Router](router/)** - Central coordination and message routing
-- **[CLI](cli/)** - Typer-based CLI (`starfish` command) for human and AI agent use, with built-in LLM agent for autonomous orchestration
+- **[CLI](cli/)** - Typer-based CLI (`starfish` command) for human and AI agent use, with built-in LLM agent for autonomous orchestration and end-to-end experiment automation
 - **[Workbench](workbench/)** - Development and testing environment
 
 ### Architecture
@@ -189,6 +189,7 @@ make down        # Stop and remove containers
 - **[Controller User Guide](controller/USER_GUIDE.md)** - Comprehensive guide for using the Controller web interface
 - **[Task Configuration Guide](controller/TASK_GUIDE.md)** - How to configure FL tasks and models
 - **[CLI Agent Guide](cli/README.md#ai-agent)** - Using the AI agent for autonomous FL orchestration
+- **[Autonomous Experiment Guide](cli/README.md#autonomous-experiment-mode)** - End-to-end experiment automation: dataset analysis, model selection, execution, and result interpretation
 
 ## Development
 

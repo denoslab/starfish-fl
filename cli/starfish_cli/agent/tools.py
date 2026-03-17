@@ -7,7 +7,6 @@ Each tool has a schema (for the LLM) and an execute function (runs the CLI).
 import json
 import os
 import subprocess
-import shlex
 
 
 def _build_cmd(args: list[str], env_file: str | None = None) -> list[str]:

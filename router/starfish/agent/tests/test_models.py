@@ -3,8 +3,27 @@
 from uuid import uuid4
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 from starfish.router.models import Site, Project, ProjectParticipant, Run
+
+
+def _create_run(project, participant):
+    """Create a Run via bulk_create to bypass FSM protected status field."""
+    now = timezone.now()
+    runs = Run.objects.bulk_create([Run(
+        project=project,
+        participant=participant,
+        site_uid=participant.site.uid,
+        role=participant.role,
+        status=Run.RunStatus.STANDBY,
+        tasks=project.tasks,
+        batch=project.batch + 1,
+        cur_seq=1,
+        created_at=now,
+        updated_at=now,
+    )])
+    return runs[0]
 
 
 class TestProjectAgentFields(TestCase):
@@ -83,27 +102,23 @@ class TestRunAgentFields(TestCase):
             notes='test')
 
     def test_run_agent_advice_default_empty_dict(self):
-        run = Run(project=self.project, participant=self.participant)
-        run.save()
+        run = _create_run(self.project, self.participant)
         self.assertEqual(run.agent_advice, {})
 
     def test_run_agent_diagnosis_default_empty_dict(self):
-        run = Run(project=self.project, participant=self.participant)
-        run.save()
+        run = _create_run(self.project, self.participant)
         self.assertEqual(run.agent_diagnosis, {})
 
     def test_run_agent_advice_can_be_set(self):
-        run = Run(project=self.project, participant=self.participant)
-        run.save()
+        run = _create_run(self.project, self.participant)
         run.agent_advice = {"action": "proceed", "reason": "all good"}
-        run.save()
+        run.save(update_fields=["agent_advice", "updated_at"])
 
         run.refresh_from_db()
         self.assertEqual(run.agent_advice["action"], "proceed")
 
     def test_run_agent_diagnosis_can_be_set(self):
-        run = Run(project=self.project, participant=self.participant)
-        run.save()
+        run = _create_run(self.project, self.participant)
         run.agent_diagnosis = {
             "root_cause": "missing data",
             "category": "data_quality",
@@ -111,7 +126,7 @@ class TestRunAgentFields(TestCase):
             "suggestion": "fix it",
             "auto_action": None,
         }
-        run.save()
+        run.save(update_fields=["agent_diagnosis", "updated_at"])
 
         run.refresh_from_db()
         self.assertEqual(run.agent_diagnosis["category"], "data_quality")
@@ -119,8 +134,7 @@ class TestRunAgentFields(TestCase):
     def test_run_serialization_includes_agent_fields(self):
         """Verify the RunSerializer includes the new fields."""
         from starfish.router.serializers import RunSerializer
-        run = Run(project=self.project, participant=self.participant)
-        run.save()
+        run = _create_run(self.project, self.participant)
 
         serializer = RunSerializer(run)
         data = serializer.data

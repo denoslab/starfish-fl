@@ -25,12 +25,12 @@ def _make_run(
     run.batch = batch
     run.cur_seq = cur_seq
     run.role = role
-    run.tasks = tasks or [{"model": "LogisticRegression", "config": {"current_round": 2, "total_round": 5}}]
-    run.middle_artifacts = middle_artifacts or []
-    run.logs = logs or []
+    run.tasks = [{"model": "LogisticRegression", "config": {"current_round": 2, "total_round": 5}}] if tasks is None else tasks
+    run.middle_artifacts = middle_artifacts if middle_artifacts is not None else []
+    run.logs = logs if logs is not None else []
     run.site_uid = site_uid
-    run.agent_advice = agent_advice or {}
-    run.agent_diagnosis = agent_diagnosis or {}
+    run.agent_advice = agent_advice if agent_advice is not None else {}
+    run.agent_diagnosis = agent_diagnosis if agent_diagnosis is not None else {}
 
     # Mock project
     project = MagicMock()

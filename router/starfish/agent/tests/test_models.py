@@ -114,8 +114,8 @@ class TestRunAgentFields(TestCase):
         run.agent_advice = {"action": "proceed", "reason": "all good"}
         run.save(update_fields=["agent_advice", "updated_at"])
 
-        run.refresh_from_db()
-        self.assertEqual(run.agent_advice["action"], "proceed")
+        reloaded = Run.objects.values("agent_advice").get(pk=run.pk)
+        self.assertEqual(reloaded["agent_advice"]["action"], "proceed")
 
     def test_run_agent_diagnosis_can_be_set(self):
         run = _create_run(self.project, self.participant)
@@ -128,8 +128,8 @@ class TestRunAgentFields(TestCase):
         }
         run.save(update_fields=["agent_diagnosis", "updated_at"])
 
-        run.refresh_from_db()
-        self.assertEqual(run.agent_diagnosis["category"], "data_quality")
+        reloaded = Run.objects.values("agent_diagnosis").get(pk=run.pk)
+        self.assertEqual(reloaded["agent_diagnosis"]["category"], "data_quality")
 
     def test_run_serialization_includes_agent_fields(self):
         """Verify the RunSerializer includes the new fields."""

@@ -5,6 +5,11 @@ from django.test import TestCase
 
 from starfish.agent.hooks import on_aggregating, on_success, on_failed
 
+# Mock paths target the strategy modules (hooks imports locally inside functions)
+_AGG_MOD = "starfish.agent.strategies.aggregation.get_aggregation_advice"
+_SCHED_MOD = "starfish.agent.strategies.scheduling.get_scheduling_advice"
+_TRIAGE_MOD = "starfish.agent.strategies.triage.get_failure_diagnosis"
+
 
 def _make_run(
     run_id=1,
@@ -71,7 +76,7 @@ class TestOnAggregating(TestCase):
         # Should not modify the run
         run.save.assert_not_called()
 
-    @patch("starfish.agent.hooks.get_aggregation_advice")
+    @patch(_AGG_MOD)
     def test_stores_advice_on_run(self, mock_advice):
         mock_advice.return_value = {
             "action": "proceed",
@@ -86,7 +91,7 @@ class TestOnAggregating(TestCase):
         self.assertEqual(run.agent_advice, mock_advice.return_value)
         run.save.assert_called()
 
-    @patch("starfish.agent.hooks.get_aggregation_advice")
+    @patch(_AGG_MOD)
     def test_passes_site_artifacts(self, mock_advice):
         mock_advice.return_value = {"action": "proceed", "reason": "ok", "flagged_sites": []}
 
@@ -98,7 +103,7 @@ class TestOnAggregating(TestCase):
         self.assertEqual(len(call_kwargs["site_artifacts"]), 2)
         self.assertEqual(call_kwargs["task_type"], "LogisticRegression")
 
-    @patch("starfish.agent.hooks.get_aggregation_advice")
+    @patch(_AGG_MOD)
     def test_logs_decision_to_project(self, mock_advice):
         mock_advice.return_value = {"action": "proceed", "reason": "ok", "flagged_sites": []}
 
@@ -123,7 +128,7 @@ class TestOnSuccess(TestCase):
         on_success(run)
         run.save.assert_not_called()
 
-    @patch("starfish.agent.hooks.get_scheduling_advice")
+    @patch(_SCHED_MOD)
     def test_stores_scheduling_advice(self, mock_advice):
         mock_advice.return_value = {
             "continue": True,
@@ -139,7 +144,7 @@ class TestOnSuccess(TestCase):
         self.assertTrue(run.agent_advice["scheduling"]["continue"])
         run.save.assert_called()
 
-    @patch("starfish.agent.hooks.get_scheduling_advice")
+    @patch(_SCHED_MOD)
     def test_logs_decision_to_project(self, mock_advice):
         mock_advice.return_value = {"continue": False, "reason": "converged"}
 
@@ -164,7 +169,7 @@ class TestOnFailed(TestCase):
         on_failed(run)
         run.save.assert_not_called()
 
-    @patch("starfish.agent.hooks.get_failure_diagnosis")
+    @patch(_TRIAGE_MOD)
     def test_stores_diagnosis_on_run(self, mock_diagnosis):
         mock_diagnosis.return_value = {
             "root_cause": "Missing column",
@@ -183,7 +188,7 @@ class TestOnFailed(TestCase):
         self.assertEqual(run.agent_diagnosis["category"], "data_quality")
         run.save.assert_called()
 
-    @patch("starfish.agent.hooks.get_failure_diagnosis")
+    @patch(_TRIAGE_MOD)
     def test_passes_correct_params(self, mock_diagnosis):
         mock_diagnosis.return_value = {
             "root_cause": "error",
@@ -205,7 +210,7 @@ class TestOnFailed(TestCase):
         self.assertEqual(call_kwargs["role"], "participant")
         self.assertEqual(len(call_kwargs["logs"]), 2)
 
-    @patch("starfish.agent.hooks.get_failure_diagnosis")
+    @patch(_TRIAGE_MOD)
     def test_logs_decision_to_project(self, mock_diagnosis):
         mock_diagnosis.return_value = {
             "root_cause": "error",

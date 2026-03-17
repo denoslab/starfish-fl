@@ -73,6 +73,46 @@ The Controller uses two Celery queues:
 !!! note "Dynamic Task Discovery"
     Tasks are discovered automatically via dynamic import. The model name in CamelCase is converted to snake_case to find the module: `CensoredRegression` -> `censored_regression/task.py`. No explicit registration is required.
 
+## Embedded Agent (Router)
+
+The Router includes an optional LLM-powered agent layer that hooks into FSM state transitions to make intelligent orchestration decisions. All features are opt-in per project via the `agent_config` JSON field.
+
+### Agent Features
+
+| Feature | Hook Point | Description |
+|---------|-----------|-------------|
+| **Aggregation Advisor** | `AGGREGATING` transition | Analyzes mid-artifacts from all sites, detects outliers, and advises on aggregation strategy |
+| **Scheduling Advisor** | `SUCCESS` (post-aggregation) | Evaluates convergence and recommends early stopping |
+| **Failure Triage** | `FAILED` transition | Diagnoses failures and provides actionable recovery suggestions |
+
+### Enabling the Agent
+
+Set `agent_config` on a project:
+
+```json
+{
+  "enabled": true,
+  "aggregation": true,
+  "scheduling": true,
+  "triage": true
+}
+```
+
+Requires `ANTHROPIC_API_KEY` environment variable. Without it, all agent features gracefully degrade to default (no-op) behavior.
+
+### Agent Data Flow
+
+```
+State Transition → Agent Hook → LLM Query → Store Result on Run/Project
+                                    ↓
+                              (on failure: use default, no-op)
+```
+
+Agent results are stored in:
+- `Run.agent_advice` — aggregation and scheduling recommendations
+- `Run.agent_diagnosis` — failure triage results
+- `Project.agent_log` — history of all agent decisions
+
 ## Router API
 
 Base URL: `http://localhost:8000/starfish/api/v1/`

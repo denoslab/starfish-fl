@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Starfish-FL is an agentic federated learning (FL) framework organized as a mono repo with three components:
 
 - **`controller/`** — Django app installed on every site; handles local ML training, Celery task queuing, and a web UI (port 8001)
-- **`router/`** — Django REST Framework app acting as central coordination server; manages global state, message forwarding, and artifact storage (port 8000)
+- **`router/`** — Django REST Framework app acting as central coordination server; manages global state, message forwarding, and artifact storage (port 8000); includes an embedded LLM agent module (`router/starfish/agent/`) for adaptive aggregation, smart scheduling, and failure triage
 - **`cli/`** — Typer-based CLI (`starfish` command) that replicates web portal functionality for human and AI agent use; includes an LLM agent module (`cli/starfish_cli/agent/`) for autonomous FL orchestration via Claude tool use
 - **`workbench/`** — Docker Compose orchestration for running all components together in development
 

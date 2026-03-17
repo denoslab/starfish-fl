@@ -22,6 +22,8 @@ Currently, Sites exchange information with RS through polling.
 Message payloads can have end-to-end encryption, and RS will not be able to read the message payloads.
 Private key exchanges between sites will be done securely.
 
+3. **Embedded Agent (Optional)**: An LLM-powered decision layer that hooks into FSM state transitions for adaptive aggregation advice, smart scheduling (early stopping), and automated failure triage. Enable per-project via `agent_config`. Requires `ANTHROPIC_API_KEY` and `poetry install --extras agent`.
+
 For more details about Sites, Controllers, Projects, Tasks, and Runs, see the [main documentation](../README.md).
 
 ## Installation Options

@@ -253,7 +253,34 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
                 run = self.get_with_lock()
                 run = Run.update_status(run, state)
                 run.save()
-            return Response(status=status.HTTP_202_ACCEPTED)
+
+        # Agent hooks (outside transaction to avoid blocking)
+        self._run_agent_hooks(run, state, project_id)
+
+        return Response(status=status.HTTP_202_ACCEPTED)
+
+    def _run_agent_hooks(self, run, state, project_id):
+        """Invoke agent hooks based on the new run state. Non-blocking."""
+        try:
+            from starfish.agent import hooks as agent_hooks
+
+            if state == Run.RunStatus.AGGREGATING:
+                all_batch_runs = Run.objects.filter(
+                    project_id=project_id, batch=run.batch)
+                agent_hooks.on_aggregating(run, all_batch_runs)
+
+            elif state == Run.RunStatus.SUCCESS:
+                if run.role == ProjectParticipant.Role.COORDINATOR:
+                    agent_hooks.on_success(run)
+
+            elif state in (Run.RunStatus.FAILED, Run.RunStatus.PENDING_FAILED):
+                agent_hooks.on_failed(run)
+        except Exception:
+            # Agent hooks must never break state transitions
+            import logging
+            logging.getLogger(__name__).warning(
+                "Agent hook failed for run %s state %s", run.id, state,
+                exc_info=True)
 
     def get_with_lock(self, queryset=None):
         # Acquire an exclusive lock on the object using select_for_update()

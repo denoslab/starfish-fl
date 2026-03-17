@@ -129,7 +129,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = ['id', 'name', 'description', 'site', 'batch',
-                  'tasks', 'created_at', 'updated_at']
+                  'tasks', 'agent_config', 'agent_log', 'created_at', 'updated_at']
         create_only_fields = ('site', 'tasks')
 
 
@@ -214,7 +214,8 @@ class RunSerializer(serializers.ModelSerializer):
     class Meta:
         model = Run
         fields = ['id', 'project', 'batch', 'participant', 'role', 'site_uid', 'cur_seq',
-                  'status', 'logs', 'artifacts', 'tasks', 'middle_artifacts', 'created_at', 'updated_at']
+                  'status', 'logs', 'artifacts', 'tasks', 'middle_artifacts',
+                  'agent_advice', 'agent_diagnosis', 'created_at', 'updated_at']
         create_only_fields = ('project', 'participant', 'role')
 
 

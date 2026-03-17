@@ -1,5 +1,6 @@
 [tool.poetry]
 name = "starfish-cli"
+version = "0.1.0"
 description = "CLI for Starfish-FL"
 
 
@@ -10,9 +11,20 @@ requests = "^2.31"
 python-dotenv = "^1.0"
 rich = "^13.0"
 click = "8.1.7"
+anthropic = {version = "^0.52", optional = true}
+
+[tool.poetry.extras]
+agent = ["anthropic"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-mock = "^3.12"
 
 [tool.poetry.scripts]
 starfish = "starfish_cli.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["poetry-core"]

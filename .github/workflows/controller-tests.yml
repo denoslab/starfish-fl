@@ -42,7 +42,9 @@ jobs:
         run: pip install poetry
 
       - name: Install dependencies
-        run: poetry install --no-root
+        run: |
+          poetry lock
+          poetry install --no-root --extras agent
 
       - name: Install R (for R-based task tests)
         run: |

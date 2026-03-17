@@ -58,7 +58,9 @@ jobs:
         run: pip install poetry
 
       - name: Install dependencies (main + unet groups)
-        run: poetry install --no-root --with unet
+        run: |
+          poetry lock
+          poetry install --no-root --with unet
 
       - name: Install test runner
         run: poetry run pip install pytest pytest-timeout

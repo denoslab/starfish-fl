@@ -119,6 +119,7 @@ The Controller component is installed on each site participating in federated le
 - Built-in model diagnostics (VIF, residual analysis, goodness-of-fit tests, prediction intervals)
 - Real-time progress monitoring
 - Celery-based distributed task processing
+- Optional LLM agent hooks for per-round summaries, convergence detection, and failure triage (opt-in via task config)
 
 **Standalone Setup:**
 

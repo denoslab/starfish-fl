@@ -27,6 +27,13 @@ class AbstractTask(ABC):
     """
     Abstract Class of a Task.
     All FL tasks should inherit this class and override the abstract methods defined.
+
+    Agent hooks
+    -----------
+    If the task config contains an ``agent`` block with ``"enabled": true``,
+    an LLM-powered agent is consulted at key lifecycle points (post-training,
+    pre/post-aggregation, on-failure).  When the agent is disabled or
+    unavailable the lifecycle proceeds identically to the non-agent path.
     """
     project_id = None
     run_id = None
@@ -37,6 +44,7 @@ class AbstractTask(ABC):
     artifact = None
     status = None
     logger = None
+    _agent_hooks = None
 
     def __init__(self, run):
         self.project_id = run['project']
@@ -128,6 +136,22 @@ class AbstractTask(ABC):
 
             valid = self.training()
             if valid:
+                # Agent hook: post-training summary
+                if self._agent_hooks and self._agent_hooks.enabled:
+                    try:
+                        mid_url = gen_mid_artifacts_url(
+                            self.run_id, self.cur_seq, self.get_round())
+                        mid_data = {}
+                        if mid_url and os.path.exists(mid_url):
+                            with open(mid_url, 'r') as f:
+                                mid_data = json.loads(f.readline())
+                        self._agent_hooks.post_training(
+                            self._get_task_type(), self.get_round(),
+                            self.tasks[self.cur_seq - 1]['config'].get('total_round', 1),
+                            mid_data, self.logger,
+                        )
+                    except Exception as hook_err:
+                        self.logger.debug("Agent post_training hook error: %s", hook_err)
                 self.notify(5)
             else:
                 self.notify(1)
@@ -192,15 +216,52 @@ class AbstractTask(ABC):
                 self.status = s
                 if self.runs_in_fails():
                     self.notify(0, param={'update_all': True})
+
+                # Agent hook: pre-aggregation outlier detection
+                if self._agent_hooks and self._agent_hooks.enabled:
+                    try:
+                        self._agent_hooks.pre_aggregation(
+                            self._get_task_type(), self.get_round(),
+                            self.tasks[self.cur_seq - 1]['config'].get('total_round', 1),
+                            [],  # mid-artifacts already on disk; pass empty for now
+                            self.logger,
+                        )
+                    except Exception as hook_err:
+                        self.logger.debug("Agent pre_aggregation hook error: %s", hook_err)
+
                 if self.do_aggregate():
-                    is_last_round = self.is_last_round()
-                    self.logger.debug(
-                        "Is the last round? {}".format(is_last_round))
-                    if is_last_round:
+                    # Agent hook: post-aggregation convergence check
+                    early_stop = False
+                    if self._agent_hooks and self._agent_hooks.enabled:
+                        try:
+                            decision = self._agent_hooks.post_aggregation(
+                                self._get_task_type(), self.get_round(),
+                                self.tasks[self.cur_seq - 1]['config'].get('total_round', 1),
+                                {},  # aggregated result
+                                None,  # round history
+                                self.logger,
+                            )
+                            if (decision and decision.get("converged")
+                                    and not self.is_last_round()):
+                                self.logger.info(
+                                    "[Agent] Early stopping at round %d: %s",
+                                    self.get_round(),
+                                    decision.get("reason", "model converged"))
+                                early_stop = True
+                        except Exception as hook_err:
+                            self.logger.debug("Agent post_aggregation hook error: %s", hook_err)
+
+                    if early_stop:
                         self.notify(8, param={'update_all': True})
                     else:
-                        self.notify(
-                            2, param={'increase_round': True, 'update_all': True})
+                        is_last_round = self.is_last_round()
+                        self.logger.debug(
+                            "Is the last round? {}".format(is_last_round))
+                        if is_last_round:
+                            self.notify(8, param={'update_all': True})
+                        else:
+                            self.notify(
+                                2, param={'increase_round': True, 'update_all': True})
                 else:
                     self.notify(0, param={'update_all': True})
             else:
@@ -224,6 +285,19 @@ class AbstractTask(ABC):
         In this event, file will be uploaded to RS for forwarding to Coordinator.
         """
         try:
+            # Agent hook: failure triage
+            if self._agent_hooks and self._agent_hooks.enabled:
+                try:
+                    task_config = self.tasks[self.cur_seq - 1].get("config", {}) if self.tasks else {}
+                    self._agent_hooks.on_failure(
+                        self._get_task_type(), task_config,
+                        self.get_round() or 0, self.role,
+                        "Task entered pending_failed state", [],
+                        self.logger,
+                    )
+                except Exception as hook_err:
+                    self.logger.debug("Agent on_failure hook error: %s", hook_err)
+
             if self.upload(False):
                 self.notify(0)
         except Exception as e:
@@ -494,9 +568,25 @@ class AbstractTask(ABC):
                     'Error while saving mid_artifacts. due to {}'.format(e))
                 return False
 
+    def _init_agent_hooks(self):
+        """Initialise agent hooks from the current task config (no-op if absent)."""
+        from starfish.controller.agent.hooks import TaskAgentHooks
+        try:
+            task_config = self.tasks[self.cur_seq - 1].get("config", {}) if self.tasks else {}
+            self._agent_hooks = TaskAgentHooks(task_config)
+        except Exception:
+            self._agent_hooks = TaskAgentHooks()
+
+    def _get_task_type(self):
+        """Return the model name for the current task sequence."""
+        if self.tasks and self.cur_seq <= len(self.tasks):
+            return self.tasks[self.cur_seq - 1].get("model", "Unknown")
+        return "Unknown"
+
     def post_init(self, run):
         self.cur_seq = run['cur_seq']
         self.tasks = run['tasks']
+        self._init_agent_hooks()
         cur_round = self.get_round()
 
         logger_name = 'logger-{}-{}-{}'.format(

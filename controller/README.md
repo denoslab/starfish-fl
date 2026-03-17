@@ -10,6 +10,8 @@ for instance, in healthcare. This is the Controller component.
 A **Controller** is installed on every site participating in federated learning.
 With the Controller running, a Site can act as either a **Coordinator** or a **Participant**.
 
+The Controller includes optional **LLM agent hooks** that fire at key points in the task lifecycle (post-training summaries, pre-aggregation outlier detection, post-aggregation convergence check, failure triage). Enable per-task via the `agent` config block. Requires `ANTHROPIC_API_KEY` and `poetry install --extras agent`.
+
 For information about the overall Starfish architecture, see the [main documentation](../README.md).
 
 ## Installation Options

@@ -24,6 +24,11 @@ statsmodels = ">=0.14.0"
 scipy = ">=1.11.0"
 # for survival analysis
 lifelines = ">=0.29.0"
+# for agent hooks (optional)
+anthropic = {version = ">=0.52", optional = true}
+
+[tool.poetry.extras]
+agent = ["anthropic"]
 
 [tool.poetry.group.unet.dependencies]
 tensorflow = "2.15.1"

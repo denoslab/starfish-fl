@@ -128,6 +128,36 @@ Each task must have:
     [{"seq": 1, "model": "FederatedUNet", "config": {"total_round": 1, "current_round": 1, "local_epochs": 1, "architecture": "resnet50", "type_Unet": "unet", "patch_size": 64, "batch_size": 1, "learning_rate": 0.0001}}]
     ```
 
+## Agent Hooks (Optional)
+
+Add an `agent` block to the task config to enable LLM-powered hooks during training:
+
+```json
+[{
+  "seq": 1,
+  "model": "LogisticRegression",
+  "config": {
+    "total_round": 10,
+    "current_round": 1,
+    "agent": {
+      "enabled": true,
+      "summaries": true,
+      "early_stopping": true,
+      "outlier_detection": true
+    }
+  }
+}]
+```
+
+| Agent Parameter | Description |
+|----------------|-------------|
+| `enabled` | Master switch for all agent hooks |
+| `summaries` | Generate natural-language summaries after each training round |
+| `early_stopping` | Evaluate convergence after aggregation; stop early if model has converged |
+| `outlier_detection` | Compare cross-site artifacts before aggregation; flag anomalous sites |
+
+Requires `ANTHROPIC_API_KEY` environment variable and `poetry install --extras agent`. Without these, all hooks are no-ops and training proceeds normally.
+
 ## Writing R-Based Tasks
 
 R tasks use a Python-R bridge via `AbstractRTask`. Each R task needs:

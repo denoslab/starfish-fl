@@ -49,6 +49,23 @@ Each ML task inherits from `AbstractTask` (Python) or `AbstractRTask` (R). The l
 5. **`pending_aggregating()`** -- Coordinator downloads all participant artifacts
 6. **`aggregating()`** -- Coordinator calls `do_aggregate()`, uploads result, loops or finishes
 
+### Agent-in-the-Loop Hooks (Controller)
+
+The Controller's `AbstractTask` includes optional LLM hook points that fire at key lifecycle stages. All hooks are no-ops when the agent is disabled or the API key is absent.
+
+| Hook | When | What it does |
+|------|------|-------------|
+| `post_training` | After `training()`, before uploading | Generates per-site round summaries, flags anomalies |
+| `pre_aggregation` | Before `do_aggregate()` (coordinator) | Compares cross-site artifacts, detects outliers |
+| `post_aggregation` | After `do_aggregate()` (coordinator) | Evaluates convergence, recommends early stopping |
+| `on_failure` | In `pending_failed()` | Diagnoses failure root cause, suggests recovery |
+
+Enable via task config:
+
+```json
+{"agent": {"enabled": true, "summaries": true, "early_stopping": true, "outlier_detection": true}}
+```
+
 The Controller uses two Celery queues:
 
 - `starfish.run` -- polling and heartbeat

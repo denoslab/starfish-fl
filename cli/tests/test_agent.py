@@ -237,6 +237,42 @@ class TestAgentLoop:
         call_kwargs = client.messages.create.call_args
         assert call_kwargs.kwargs["model"] == "claude-haiku-4-5-20251001"
 
+    def test_custom_system_prompt(self):
+        """Verify custom system prompt is passed to the API."""
+        client = MagicMock()
+        response = _make_response([_make_text_block("Hello")])
+        client.messages.create.return_value = response
+
+        custom_prompt = "You are a custom agent."
+        run_agent_loop("Hello", client=client, system_prompt=custom_prompt)
+
+        call_kwargs = client.messages.create.call_args
+        assert call_kwargs.kwargs["system"] == custom_prompt
+
+    def test_custom_tools_list(self):
+        """Verify custom tools are passed to the API."""
+        client = MagicMock()
+        response = _make_response([_make_text_block("Hello")])
+        client.messages.create.return_value = response
+
+        custom_tools = [{"name": "test_tool", "description": "Test", "input_schema": {"type": "object", "properties": {}, "required": []}}]
+        run_agent_loop("Hello", client=client, tools=custom_tools)
+
+        call_kwargs = client.messages.create.call_args
+        assert call_kwargs.kwargs["tools"] == custom_tools
+
+    def test_default_system_prompt_unchanged(self):
+        """Verify default prompt is used when system_prompt is None."""
+        client = MagicMock()
+        response = _make_response([_make_text_block("Hello")])
+        client.messages.create.return_value = response
+
+        run_agent_loop("Hello", client=client)
+
+        call_kwargs = client.messages.create.call_args
+        assert "Starfish-FL" in call_kwargs.kwargs["system"]
+        assert len(call_kwargs.kwargs["tools"]) == 15
+
 
 class TestExtractFinalResponse:
     """Test extracting the final text from conversation history."""

@@ -40,7 +40,7 @@ starfish project   list / new / join / leave / detail
 starfish run       start / status / detail / logs
 starfish dataset   upload
 starfish artifact  download
-starfish agent     run / tools
+starfish agent     run / experiment / tools
 ```
 
 ## AI Agent
@@ -77,9 +77,43 @@ poetry run starfish agent run "Monitor my runs" --model claude-haiku-4-5-2025100
 |--------|-------------|
 | `--model` / `-m` | Anthropic model to use (default: `claude-sonnet-4-6`) |
 | `--api-key` / `-k` | Anthropic API key (default: `ANTHROPIC_API_KEY` env var) |
-| `--max-turns` | Maximum agent turns (default: 50) |
+| `--max-turns` | Maximum agent turns (default: 50 for `run`, 100 for `experiment`) |
 | `--verbose` / `-v` | Show tool calls and results |
 | `--json` | Output full conversation as JSON |
+
+### Autonomous Experiment Mode
+
+The `experiment` command provides a fully autonomous FL experiment workflow. Given dataset paths and a research goal, the agent will analyze the data, select the appropriate model, configure the project, run the experiment end-to-end, and interpret results — iterating to find the best approach.
+
+```bash
+# Run an autonomous experiment
+poetry run starfish agent experiment \
+  "Analyze the dataset at /data/site1.csv and /data/site2.csv, \
+   choose the best model, run a federated learning experiment, \
+   and interpret the results" --verbose
+
+# Survival analysis experiment
+poetry run starfish agent experiment \
+  "Run a survival analysis on /data/veteran_site1.csv and /data/veteran_site2.csv \
+   using two sites. The data has time and event columns." --verbose
+```
+
+#### Experiment Tools
+
+In addition to all CLI tools, the experiment agent has access to local analysis tools:
+
+| Tool | Description |
+|------|-------------|
+| `analyze_dataset` | Analyze CSV structure, column types, and detected patterns |
+| `recommend_task` | Recommend FL task types based on data analysis |
+| `generate_config` | Generate task config JSON for a model with correct defaults |
+| `interpret_results` | Parse and interpret experiment artifact files |
+| `compare_experiments` | Compare results across multiple experiments and rank models |
+
+List all tools (including experiment tools) with:
+```bash
+poetry run starfish agent tools --all
+```
 
 ## Example workflow would look something like
 ```bash

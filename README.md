@@ -331,11 +331,13 @@ For issues, questions, or contributions:
 
 If you use Starfish in your research, please cite:
 
-```
-@software{starfish,
-  title = {Starfish-FL: A Federated Learning System},
-  author = {DENOS Lab},
+```bibtex
+@article{bao2026starfish,
+  title = {Privacy-Preserving Federated Analysis Reproduces Non-Inferiority Results from the {AcT} Multicentre Stroke Trial},
+  author = {Bao, Yunkai and Saad, Zainab and Duarte, Kaue and Abbas, Farhan and Sajobi, Tolulope and Holodinsky, Jessalyn K. and Menon, Bijoy K. and Drew, Steve},
+  journal = {SSRN preprint},
   year = {2026},
-  url = {https://github.com/denoslab/starfish-fl}
+  doi = {10.2139/ssrn.6426303},
+  url = {https://ssrn.com/abstract=6426303}
 }
 ```

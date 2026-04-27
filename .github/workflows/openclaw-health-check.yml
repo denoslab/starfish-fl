@@ -1,0 +1,45 @@
+name: OpenClaw Health Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  openclaw-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build OpenClaw Docker image
+        run: docker build -t starfish-openclaw:latest -f workbench/Dockerfile.openclaw .
+
+      - name: Start OpenClaw container
+        run: |
+          docker run -d \
+            --name openclaw-health-test \
+            -p 18789:18789 \
+            --env-file workbench/config/openclaw.env \
+            -e OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS="http://localhost:18789,http://127.0.0.1:18789,ws://localhost:18789,ws://127.0.0.1:18789" \
+            starfish-openclaw:latest
+
+      - name: Wait for OpenClaw to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18789/healthz > /dev/null 2>&1; then
+              echo "✓ OpenClaw is healthy (HTTP 200)"
+              exit 0
+            fi
+            echo "Attempt $i/30: Waiting for OpenClaw to be ready..."
+            sleep 2
+          done
+          echo "✗ OpenClaw failed to become healthy within 60 seconds"
+          docker logs openclaw-health-test
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f openclaw-health-test || true

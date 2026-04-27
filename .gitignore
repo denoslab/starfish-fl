@@ -113,3 +113,6 @@ GitHub.sublime-settings
 
 # Copilot instructions
 .github/copilot-instructions.md
+
+# openclaw .env file
+workbench/config/openclaw.env

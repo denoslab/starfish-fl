@@ -1,10 +1,9 @@
-version: '3.9'
-
 services:
   router:
     build:
       context: ../../router
     image: starfish-router
+    pull_policy: never
     container_name: starfish-router
     depends_on:
       - postgres
@@ -15,11 +14,14 @@ services:
     command: bash -c "cron && poetry run python3 manage.py runserver 0.0.0.0:8000"
     volumes:
       - router_artifacts:/starfish/artifacts
+    networks:
+      - starfish-network
 
   controller:
     build:
       context: ../../controller
     image: starfish-controller
+    pull_policy: never
     container_name: starfish-controller
     depends_on:
       - postgres
@@ -41,11 +43,14 @@ services:
               capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
+    networks:
+      - starfish-network
 
   controller-scheduler:
     build:
       context: ../../controller
     image: starfish-controller
+    pull_policy: never
     container_name: starfish-controller-scheduler
     depends_on:
       - postgres
@@ -65,11 +70,14 @@ services:
               capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
+    networks:
+      - starfish-network
 
   controller-run-worker:
     build:
       context: ../../controller
     image: starfish-controller
+    pull_policy: never
     container_name: starfish-controller-run-worker
     depends_on:
       - postgres
@@ -89,11 +97,14 @@ services:
               capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
+    networks:
+      - starfish-network
 
   controller-processor-worker:
     build:
       context: ../../controller
     image: starfish-controller
+    pull_policy: never
     container_name: starfish-controller-processor-worker
     depends_on:
       - postgres
@@ -113,6 +124,8 @@ services:
               capabilities: [gpu]
     volumes:
       - controller_artifacts:/starfish-controller/local
+    networks:
+      - starfish-network
 
 
   redis:
@@ -122,6 +135,8 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/opt/redis/data
+    networks:
+      - starfish-network
 
   postgres:
     image: postgres:12.9
@@ -139,9 +154,62 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    networks:
+      - starfish-network
+
+  openclaw-perms:
+    build:
+      context: ../..
+      dockerfile: workbench/Dockerfile.openclaw
+    image: starfish-openclaw:latest
+    pull_policy: never
+    container_name: openclaw-perms
+    user: "0:0"
+    command: ["sh", "-lc", "mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace && chown -R 1000:1000 /home/node/.openclaw"]
+    restart: "no"
+    volumes:
+      - openclaw_config:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+    networks:
+      - starfish-network
+
+  openclaw:
+    build:
+      context: ../..
+      dockerfile: workbench/Dockerfile.openclaw
+    image: starfish-openclaw:latest
+    pull_policy: never
+    container_name: openclaw-gateway
+    depends_on:
+      openclaw-perms:
+        condition: service_completed_successfully
+    ports:
+      - '18789:18789'
+    env_file:
+      - ../config/openclaw.env
+    environment:
+      OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS: "http://localhost:18789,http://127.0.0.1:18789,ws://localhost:18789,ws://127.0.0.1:18789"
+      PYTHONPATH: /home/node/.openclaw/workspace/starfish-cli
+    volumes:
+      - openclaw_config:/home/node/.openclaw
+      - openclaw_workspace:/home/node/.openclaw/workspace
+      - ../../cli:/home/node/.openclaw/workspace/starfish-cli:ro
+    networks:
+      - starfish-network
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18789/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data: {}
   router_artifacts: {}
   controller_artifacts: {}
   redis_data: {}
+  openclaw_config: {}
+  openclaw_workspace: {}
+
+networks:
+  starfish-network:
+    driver: bridge

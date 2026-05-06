@@ -332,6 +332,10 @@ def upload_dataset(request):
         url = gen_dataset_url(run_id)
         try:
             fs = FileSystemStorage(url)
+            # Always replace the canonical dataset file used by task loaders.
+            canonical_path = os.path.join(url, 'dataset')
+            if os.path.exists(canonical_path):
+                os.remove(canonical_path)
             name = fs.save('dataset', dataset)
             if not name:
                 return JsonResponse({

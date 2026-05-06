@@ -76,5 +76,5 @@ volumes:
 
 networks:
   default:
-    name: starfishworkbench_default
+    name: starfishworkbench_starfish-network
     external: true

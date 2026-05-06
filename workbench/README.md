@@ -13,6 +13,7 @@ The workbench orchestrates the following components:
 - **Controller**: Site management and FL task execution (includes R runtime for R-based tasks)
 - **PostgreSQL**: Database for the router
 - **Redis**: Cache and message broker for the controller
+- **OpenClaw**: LLM-powered agent framework for autonomous orchestration (optional but included)
 
 All components are configured to work together out of the box.
 
@@ -99,6 +100,7 @@ Update these files with your specific settings before running the services.
 Once running, you can access:
 - **Router API**: http://localhost:8000/starfish/api/v1/
 - **Controller Web UI**: http://localhost:8001/
+- **OpenClaw UI**: http://localhost:18789/ (see [OpenClaw documentation](docs/openclaw.md) for setup details)
 
 ## Troubleshooting
 
@@ -147,4 +149,5 @@ For more details about each component, see:
 - [Controller Documentation](../controller/README.md)
 - [Router Documentation](../router/README.md)
 - [Main Starfish Documentation](../README.md) 
+- [OpenClaw Documentation](docs/openclaw.md)
 

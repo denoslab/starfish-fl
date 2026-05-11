@@ -47,19 +47,9 @@ make up
 
 #### First Time Setup
 
-If it is a brand new environment or a clean database, you need to create the database and a superuser:
+If it is a brand new environment or a clean database, PostgreSQL will initialize the database automatically. You just need to run migrations and create a superuser:
 
-1. **Create the database:**
-   ```bash
-   ./init_db.sh
-   ```
-
-2. **Restart services** (if needed):
-   ```bash
-   docker-compose restart router
-   ```
-
-3. **Run migrations and create superuser:**
+1. **Run migrations and create superuser:**
    ```bash
    docker-compose exec -it router bash
    ```
@@ -71,7 +61,7 @@ If it is a brand new environment or a clean database, you need to create the dat
    poetry run python3 manage.py createsuperuser
    ```
 
-4. **Configure credentials:**
+2. **Configure credentials:**
    
    Make sure the username and password you created match what's configured in `config/controller.env`.
 

@@ -47,7 +47,7 @@ make up
 
 #### First Time Setup
 
-If it is a brand new environment or a clean database, PostgreSQL will initialize the database automatically. You just need to run migrations and create a superuser:
+If this is a brand new environment with a fresh PostgreSQL data volume, PostgreSQL will initialize the `starfish-router` database automatically. You just need to run migrations and create a superuser:
 
 1. **Run migrations and create superuser:**
    ```bash

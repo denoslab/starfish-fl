@@ -25,7 +25,6 @@ make down           # Stop and remove containers
 
 First-time initialization after `make up`:
 ```bash
-./init_db.sh        # Create PostgreSQL database
 docker-compose exec -it router bash
 # Inside container:
 poetry run python3 manage.py migrate

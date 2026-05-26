@@ -70,9 +70,52 @@ services:
     volumes:
       - redis_data_site2:/opt/redis/data
 
+  openclaw-site2-perms:
+    build:
+      context: ..
+      dockerfile: workbench/Dockerfile.openclaw
+    image: starfish-openclaw:latest
+    pull_policy: never
+    container_name: openclaw-perms-site2
+    user: "0:0"
+    command: ["sh", "-lc", "mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace && chown -R 1000:1000 /home/node/.openclaw"]
+    restart: "no"
+    volumes:
+      - openclaw_config_site2:/home/node/.openclaw
+      - openclaw_workspace_site2:/home/node/.openclaw/workspace
+
+  openclaw-site2:
+    build:
+      context: ..
+      dockerfile: workbench/Dockerfile.openclaw
+    image: starfish-openclaw:latest
+    pull_policy: never
+    container_name: openclaw-gateway-site2
+    depends_on:
+      openclaw-site2-perms:
+        condition: service_completed_successfully
+    ports:
+      - '18790:18789'
+    env_file:
+      - openclaw.site2.env
+    environment:
+      OPENCLAW_CONTROL_UI_ALLOWED_ORIGINS: "http://localhost:18790,http://127.0.0.1:18790,ws://localhost:18790,ws://127.0.0.1:18790"
+      PYTHONPATH: /home/node/.openclaw/workspace/starfish-cli
+    volumes:
+      - openclaw_config_site2:/home/node/.openclaw
+      - openclaw_workspace_site2:/home/node/.openclaw/workspace
+      - ../cli:/home/node/.openclaw/workspace/starfish-cli:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18789/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   artifacts-site2: {}
   redis_data_site2: {}
+  openclaw_config_site2: {}
+  openclaw_workspace_site2: {}
 
 networks:
   default:

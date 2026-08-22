@@ -335,11 +335,12 @@ If you use Starfish in your research, please cite:
 
 ```bibtex
 @article{bao2026starfish,
-  title = {Privacy-Preserving Federated Analysis Reproduces Non-Inferiority Results from the {AcT} Multicentre Stroke Trial},
-  author = {Bao, Yunkai and Saad, Zainab and Duarte, Kaue and Abbas, Farhan and Sajobi, Tolulope and Holodinsky, Jessalyn K. and Menon, Bijoy K. and Drew, Steve},
-  journal = {SSRN preprint},
+  title = {Starfish-FL: Harnessing Agentic Federated Analytics},
+  author = {Bao, Yunkai and Saad, Zainab and Abbas, Farhan and Duarte, Kaue and Sajobi, Tolulope and Menon, Bijoy and Zhou, Jiayu and Drew, Steve},
+  journal = {ACM Transactions on Computing for Healthcare},
+  publisher = {Association for Computing Machinery},
   year = {2026},
-  doi = {10.2139/ssrn.6426303},
-  url = {https://ssrn.com/abstract=6426303}
+  doi = {10.1145/3843774},
+  url = {https://doi.org/10.1145/3843774}
 }
 ```

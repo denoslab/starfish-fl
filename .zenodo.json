@@ -1,0 +1,30 @@
+{
+  "title": "Starfish-FL, an Agentic Federated Learning and Analysis Framework",
+  "version": "v0.2.0",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "Apache-2.0",
+  "language": "eng",
+  "description": "<p>Starfish-FL is a general-purpose federated learning and analysis platform that orchestrates distributed computation across healthcare institutions without exposing patient-level data. Standardized statistical scripts execute locally behind each institution's firewall and only site-level aggregate outputs are shared for central synthesis.</p><p>This release adds the <code>r_noninferiority_meta</code> task, which implements federated site-stratified non-inferiority meta-analysis in R. Each site returns a proportion difference and its standard error, and the coordinating centre pools them by inverse-variance weighting using metafor. The release also adds <code>analysis/act-noninferiority/run_analysis.R</code>, a single entry-point script that regenerates Table 1, Table 2 and Table 3 of the accompanying manuscript in one run across the emulated 21-site network and writes the execution log for that run.</p><p>The individual patient data from the Alteplase Compared to Tenecteplase (AcT) trial are restricted and are not included in this deposit. The script takes the trial extract as an argument and establishes provenance by checking the derived counts against those published by the parent trial, so neither the input path nor the file name is recorded in the deposited log.</p>",
+  "keywords": [
+    "federated learning",
+    "federated analysis",
+    "privacy-preserving analysis",
+    "non-inferiority",
+    "meta-analysis",
+    "clinical trials",
+    "ischemic stroke",
+    "thrombolytic therapy",
+    "reproducibility"
+  ],
+  "creators": [
+    { "name": "Bao, Yunkai",        "affiliation": "Department of Electrical and Software Engineering, Schulich School of Engineering, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Saad, Zainab",       "affiliation": "Department of Electrical and Software Engineering, Schulich School of Engineering, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Duarte, Kaue",       "affiliation": "Department of Clinical Neurosciences, Cumming School of Medicine, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Abbas, Farhan",      "affiliation": "Department of Electrical and Software Engineering, Schulich School of Engineering, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Sajobi, Tolulope",   "affiliation": "Department of Community Health Sciences, Cumming School of Medicine, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Holodinsky, Jessalyn", "affiliation": "Department of Community Health Sciences, Cumming School of Medicine, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Menon, Bijoy",       "affiliation": "Department of Clinical Neurosciences, Cumming School of Medicine, University of Calgary, Calgary, AB, Canada" },
+    { "name": "Drew, Steve",        "affiliation": "Department of Electrical and Software Engineering, Schulich School of Engineering, University of Calgary, Calgary, AB, Canada" }
+  ]
+}

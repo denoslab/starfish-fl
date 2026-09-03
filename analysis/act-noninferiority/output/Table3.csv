@@ -1,0 +1,11 @@
+"estimator","analysis_set","continuity_correction","model","estimate","ci_lb","ci_ub"
+"Crude","Complete case","not applicable","not applicable",2.13648884325135,-2.61143998609358,6.88441767259628
+"Site-stratified","Complete case","applied","Fixed effect",2.1168137573,-2.5325015874,6.766129102
+"Site-stratified","Complete case","applied","Random effects",2.6525959403,-2.9543978217,8.2595897022
+"Site-stratified","Complete case","not applied","Fixed effect",2.4283655946,-2.2114113688,7.0681425581
+"Site-stratified","Complete case","not applied","Random effects",3.2694334705,-2.8619454997,9.4008124407
+"Crude","Full randomized","not applicable","not applicable",2.22391724839321,-2.50201088291689,6.94984537970332
+"Site-stratified","Full randomized","applied","Fixed effect",2.2183240311,-2.4093140581,6.8459621203
+"Site-stratified","Full randomized","applied","Random effects",2.7332090948,-2.8554579231,8.3218761128
+"Site-stratified","Full randomized","not applied","Fixed effect",2.5265769865,-2.0916552483,7.1448092213
+"Site-stratified","Full randomized","not applied","Random effects",3.3353226152,-2.7727318835,9.4433771138

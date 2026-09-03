@@ -1,0 +1,31 @@
+2026-09-03 01:22:12  run_analysis.R starting
+2026-09-03 01:22:12  R version      : R version 4.1.2 (2021-11-01)
+2026-09-03 01:22:12  metafor version: 4.6.0
+2026-09-03 01:22:12  task           : r_noninferiority_meta
+2026-09-03 01:22:12  input          : AcT trial extract, identified below by its derived counts
+2026-09-03 01:22:14  partitioned 1577 records into 21 sites
+2026-09-03 01:22:14  pass: outcome=fup_mrs_0_and_1 set=mrs continuity_correction=TRUE
+2026-09-03 01:22:37    k=21 estimate=2.11681 SE=2.37214 Q=24.3952 I2=18.02
+2026-09-03 01:22:37  pass: outcome=fup_mrs_0_to_2 set=mrs continuity_correction=TRUE
+2026-09-03 01:23:01    k=21 estimate=1.24594 SE=2.44661 Q=26.323 I2=24.02
+2026-09-03 01:23:01  pass: outcome=portal_sae_sich set=safety continuity_correction=TRUE
+2026-09-03 01:23:24    k=21 estimate=0.488444 SE=0.915979 Q=9.42863 I2=0
+2026-09-03 01:23:24  pass: outcome=p_deceased set=safety_vital continuity_correction=TRUE
+2026-09-03 01:23:47    k=21 estimate=0.14469 SE=1.76808 Q=17.4054 I2=0
+2026-09-03 01:23:47  outcome (1) counts: alteplase 266/765, tenecteplase 296/802  published 266/765, 296/802
+2026-09-03 01:23:47  outcome (2) counts: alteplase 425/765, tenecteplase 452/802  published 425/765, 452/802
+2026-09-03 01:23:47  outcome (3) counts: alteplase 24/763, tenecteplase 27/800  published 24/763, 27/800
+2026-09-03 01:23:47  outcome (4) counts: alteplase 117/758, tenecteplase 122/796  published 117/758, 122/796
+2026-09-03 01:23:47  all four outcomes reproduce the published AcT counts
+2026-09-03 01:23:47  wrote Table1.csv
+2026-09-03 01:23:47  wrote Table2.csv
+2026-09-03 01:23:47  pass: outcome=fup_mrs_0_and_1 set=mrs continuity_correction=FALSE
+2026-09-03 01:24:11    k=21 estimate=2.42837 SE=2.36728 Q=27.8535 I2=28.2
+2026-09-03 01:24:11  pass: outcome=fup_mrs_0_and_1 set=randomized continuity_correction=TRUE
+2026-09-03 01:24:34    k=21 estimate=2.21832 SE=2.36108 Q=24.4342 I2=18.15
+2026-09-03 01:24:34  pass: outcome=fup_mrs_0_and_1 set=randomized continuity_correction=FALSE
+2026-09-03 01:24:58    k=21 estimate=2.52658 SE=2.35628 Q=27.8814 I2=28.27
+2026-09-03 01:24:58  wrote Table3.csv
+2026-09-03 01:24:58  lowest confidence bound across all 10 specifications: -2.954
+2026-09-03 01:24:58  removed the temporary site partitions
+2026-09-03 01:24:58  run_analysis.R complete

@@ -20,12 +20,7 @@
     make up
     ```
 
-3. **Initialize the database** (first time only)
-    ```bash
-    ./init_db.sh
-    ```
-
-4. **Create superuser for router** (first time only)
+3. **Run migrations and create superuser** (first time only)
     ```bash
     docker exec -it starfish-router poetry run python3 manage.py makemigrations
     docker exec -it starfish-router poetry run python3 manage.py migrate
@@ -33,11 +28,11 @@
     ```
     Make sure the username and password match what's configured in `workbench/config/controller.env`.
 
-5. **Access the applications**
+4. **Access the applications**
     - Router API: [http://localhost:8000/starfish/api/v1/](http://localhost:8000/starfish/api/v1/)
     - Controller Web Interface: [http://localhost:8001/](http://localhost:8001/)
 
-6. **Stop the services**
+5. **Stop the services**
     ```bash
     make stop    # Stop services
     make down    # Stop and remove containers

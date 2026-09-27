@@ -2,14 +2,14 @@ name: UNet Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/babelbrain-fl]
     paths:
       - 'controller/starfish/controller/tasks/federated_unet/**'
       - 'controller/starfish/controller/file/file_utils.py'
       - 'controller/pyproject.toml'
       - '.github/workflows/unet-tests.yml'
   push:
-    branches: [main]
+    branches: [main, feature/babelbrain-fl]
     paths:
       - 'controller/starfish/controller/tasks/federated_unet/**'
       - 'controller/starfish/controller/file/file_utils.py'

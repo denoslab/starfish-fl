@@ -482,12 +482,12 @@ class BabelBrainFno(AbstractTask):
         cached = (base_meta.get('metrics') or {}).get('eval') or {}
         if cached.get('store_digest') == digest and \
                 cached.get('model_version') == base_meta['model_version']:
-            current = cached['scores']
+            current, current_regions = cached['scores'], cached.get('regions')
         else:
-            current = G.evaluate(base, complex_keys, pkg,
-                                 self.bucket_hz(), records, device)
-        scores = G.evaluate(candidate, complex_keys, pkg,
-                            self.bucket_hz(), records, device)
+            current, current_regions = G.evaluate(base, complex_keys, pkg,
+                                                  self.bucket_hz(), records, device)
+        scores, regions = G.evaluate(candidate, complex_keys, pkg,
+                                     self.bucket_hz(), records, device)
         accepted, reasons = G.decide(scores, current, cfg)
 
         report = {
@@ -495,12 +495,13 @@ class BabelBrainFno(AbstractTask):
             'store_digest': digest, 'current_model': base_meta['model_version'],
             'margins': {k: cfg[k] for k in cfg if k != 'enabled'},
             'current': current, 'candidate': scores, 'accepted': accepted, 'reasons': reasons,
-            'region_breakdown': None if not G.REGION_BREAKDOWN_AVAILABLE else {},
+            'region_breakdown': G.region_breakdown(current_regions, regions),
         }
         self._write_eval_report(report)
         self._eval_report = report
         metrics['eval'] = {'store_digest': digest,
-                           'scores': scores if accepted else current}
+                           'scores': scores if accepted else current,
+                           'regions': regions if accepted else current_regions}
         self.logger.info('Gate: eval rel l2 {:.3f}% to {:.3f}%, peak distance {:.3f} to {:.3f} mm '
                          'on {} samples; {}'.format(
                              current['rel_l2_pct']['mean'], scores['rel_l2_pct']['mean'],

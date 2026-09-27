@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://denoslab.com/schemas/babelbrain-fl/manifest-1.0.json",
-  "title": "BabelBrain FL sample manifest line, schema 1.0",
+  "$id": "https://denoslab.com/schemas/babelbrain-fl/manifest-1.1.json",
+  "title": "BabelBrain FL sample manifest line, schema 1.1",
   "type": "object",
   "oneOf": [
     {
@@ -26,7 +26,10 @@
           "format": "uuid"
         },
         "schema_version": {
-          "const": "1.0"
+          "enum": [
+            "1.0",
+            "1.1"
+          ]
         },
         "file": {
           "type": "string",
@@ -95,9 +98,32 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
           "description": "SHA-256 of the source DataForSim.h5, used locally to avoid exporting the same run twice"
+        },
+        "region": {
+          "enum": [
+            "P7",
+            "P8",
+            "PO7",
+            "TP7",
+            "TP8",
+            "other"
+          ],
+          "description": "Target region class, schema 1.1 only, written only for the NeuroFUS held-out test set export (decision D6)"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "if": {
+        "required": [
+          "region"
+        ]
+      },
+      "then": {
+        "properties": {
+          "schema_version": {
+            "const": "1.1"
+          }
+        }
+      }
     },
     {
       "required": [

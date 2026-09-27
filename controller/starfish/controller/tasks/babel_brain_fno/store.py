@@ -25,6 +25,10 @@ STORE_ENV = 'BABELBRAIN_FL_STORE'
 STORE_VERSION_DIR = 'v1'
 MANIFEST_NAME = 'manifest.jsonl'
 SCHEMA_VERSION = '1.0'
+# Schema 1.1, decision D6: an optional region class, only in the NeuroFUS test set
+SCHEMA_VERSION_REGIONS = '1.1'
+SCHEMA_VERSIONS = (SCHEMA_VERSION, SCHEMA_VERSION_REGIONS)
+REGIONS = ('P7', 'P8', 'PO7', 'TP7', 'TP8', 'other')
 SCHEMA_PATH = Path(__file__).resolve().parent / 'manifest.schema.json'
 
 BUCKET_SPACING_MM = {250000: 0.490, 500000: 0.368, 750000: 0.245}
@@ -48,6 +52,7 @@ class SampleRecord:
     split: str
     group_id: str
     sha256: str
+    region: str = None
 
 
 def _load_validator():
@@ -201,7 +206,7 @@ class SampleStore:
         return SampleRecord(
             sample_id=sample_id, path=path, bucket_hz=entry['bucket_hz'],
             split=entry['split'], group_id=entry['group_id'],
-            sha256=entry['sha256'])
+            sha256=entry['sha256'], region=entry.get('region'))
 
     def scan(self):
         """Read the manifest and check every file. Safe to call again after changes."""

@@ -20,7 +20,7 @@ from starfish.controller.tasks.babel_brain_fno import store as store_module
 from starfish.controller.tasks.babel_brain_fno.sample_io import (
     SampleFormatError, read_sample, torch_dataset)
 from starfish.controller.tasks.babel_brain_fno.store import (
-    SCHEMA_PATH, STORE_ENV, SampleStore, StoreError)
+    REGIONS, SCHEMA_PATH, SCHEMA_VERSIONS, STORE_ENV, SampleStore, StoreError)
 from starfish.controller.tasks.babel_brain_fno.synthetic import (
     append_manifest, delete_sample, write_sample_file, write_synthetic_store)
 
@@ -308,6 +308,50 @@ class SchemaCopyTest(TestCase):
         self.assertEqual(actual, expected,
                          'Copy babelbrain-docs/specs/manifest.schema.json into {}'.format(
                              SCHEMA_PATH.name))
+
+
+class RegionLabelTest(TestCase):
+    """Schema 1.1, decision D6: region labels in the NeuroFUS test set only."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = os.path.join(self.tmp, 'eval')
+        self.entries = write_synthetic_store(self.root, n_groups=2, per_group=4,
+                                             val_groups=0, regions=True)
+
+    def test_region_labels_reach_the_records(self):
+        records = SampleStore(self.root).samples()
+        self.assertEqual(len(records), 8)
+        self.assertEqual({r.region for r in records}, set(REGIONS))
+        versions = {e['schema_version'] for e in self.entries}
+        self.assertEqual(versions, {'1.1'})
+
+    def test_version_1_1_sample_files_are_read(self):
+        path = os.path.join(self.root, 'v1', self.entries[0]['file'])
+        with h5py.File(path, 'r') as f:
+            self.assertEqual(f.attrs['schema_version'], '1.1')
+        arrays, _ = read_sample(path)
+        self.assertEqual(arrays['ct_hu'].shape, (16, 16, 32))
+
+    def test_version_1_0_records_have_no_region(self):
+        root = os.path.join(self.tmp, 'lab')
+        write_synthetic_store(root, n_groups=1, per_group=2, val_groups=0)
+        records = SampleStore(root).samples()
+        self.assertEqual({r.region for r in records}, {None})
+
+    def test_region_on_a_1_0_line_or_an_unknown_region_is_rejected(self):
+        append_manifest(self.root, dict(self.entries[0], sample_id=str(uuid.uuid4()),
+                                        schema_version='1.0'))
+        append_manifest(self.root, dict(self.entries[0], sample_id=str(uuid.uuid4()),
+                                        region='Fz'))
+        store = SampleStore(self.root)
+        self.assertEqual(len(store.samples()), 8)
+        self.assertEqual(store.rejections['schema'], 2)
+
+    def test_region_classes_match_the_contract(self):
+        self.assertEqual(REGIONS, ('P7', 'P8', 'PO7', 'TP7', 'TP8', 'other'))
+        self.assertEqual(SCHEMA_VERSIONS, ('1.0', '1.1'))
 
 
 class ReadSampleTest(StoreTestCase):

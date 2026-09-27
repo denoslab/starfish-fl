@@ -12,8 +12,8 @@
 # is set everywhere and no ANTHROPIC_API_KEY is passed. Each site mounts its
 # own synthetic sample store read-only at /babelbrain-store, and the
 # coordinator also mounts a held-out eval store for the SF-05 gate at
-# /babelbrain-eval-store. store-init writes the stores once; delete the
-# volumes to regenerate them.
+# /babelbrain-eval-store, a test set with region labels. store-init writes
+# the stores once; delete the volumes to regenerate them.
 #
 # Use it through the Makefile: make babelbrain-up, babelbrain-check,
 # babelbrain-down. Do not run it together with the default or e2e workbench,
@@ -168,11 +168,14 @@ services:
               --groups 6 --per-group 4 --val-groups 1 --seed $$seed
           fi
         done
-        if [ -f /stores/eval-a/v1/manifest.jsonl ]; then
+        # The eval store is a schema 1.1 test set with region labels, D6; an
+        # older store without them is written again
+        if grep -qs '"region"' /stores/eval-a/v1/manifest.jsonl; then
           echo "eval store exists, keeping it"
         else
+          rm -rf /stores/eval-a/v1
           python3 -m starfish.controller.tasks.babel_brain_fno.synthetic /stores/eval-a \
-            --groups 3 --per-group 2 --val-groups 0 --seed 99
+            --groups 3 --per-group 2 --val-groups 0 --seed 99 --regions
         fi
     volumes:
       - bb_eval_a:/stores/eval-a

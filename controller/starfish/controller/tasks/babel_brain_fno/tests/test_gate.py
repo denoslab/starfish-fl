@@ -82,7 +82,37 @@ class MetricsTest(TestCase):
         self.assertEqual(M.PEAK_ERROR_AT, 'own_peak')
         self.assertAlmostEqual(M.FOCAL_AMPLITUDE_FRACTION, 0.70795, places=5)
         self.assertFalse(M.CENTROID_WEIGHTED)
-        self.assertFalse(G.REGION_BREAKDOWN_AVAILABLE)
+        self.assertTrue(G.REGION_BREAKDOWN_AVAILABLE)
+
+
+class RegionBreakdownTest(TestCase):
+    """D6: summaries per region class from the schema 1.1 labels."""
+
+    class Record:
+        def __init__(self, region):
+            self.region = region
+
+    def rows(self, *values):
+        return [dict.fromkeys(M.METRICS, v) for v in values]
+
+    def test_rows_are_grouped_by_region_in_contract_order(self):
+        records = [self.Record(r) for r in ('TP8', 'P7', 'TP8', 'other')]
+        regions = G.by_region(self.rows(1.0, 2.0, 3.0, 4.0), records)
+        self.assertEqual(list(regions), ['P7', 'TP8', 'other'])
+        self.assertEqual(regions['TP8']['n'], 2)
+        self.assertEqual(regions['TP8']['rel_l2_pct']['mean'], 2.0)
+
+    def test_no_labels_give_no_breakdown(self):
+        records = [self.Record(None), self.Record(None)]
+        self.assertIsNone(G.by_region(self.rows(1.0, 2.0), records))
+        self.assertIsNone(G.region_breakdown(None, None))
+
+    def test_breakdown_pairs_current_and_candidate(self):
+        current = {'P7': {'n': 1}, 'P8': {'n': 2}}
+        candidate = {'P7': {'n': 1}, 'P8': {'n': 2}}
+        self.assertEqual(G.region_breakdown(current, candidate), {
+            'P7': {'current': {'n': 1}, 'candidate': {'n': 1}},
+            'P8': {'current': {'n': 2}, 'candidate': {'n': 2}}})
 
 
 def scores(rel, peak):
@@ -187,6 +217,10 @@ class GateInTaskTest(FnoTaskTestCase):
         self.assertFalse(os.path.exists(site._global_out_path()))
 
     def test_current_models_score_is_reused_when_the_eval_set_is_unchanged(self):
+        self.second_round_from_the_published_model()
+
+    def second_round_from_the_published_model(self):
+        """Round 2 on an unchanged eval set: the current model's cached score is used."""
         site = self.coordinator(max_rel_l2_increase=1e9,
                                 max_peak_distance_increase_mm=1e9)
         self.assertTrue(self.aggregate(site, 1))
@@ -210,6 +244,36 @@ class GateInTaskTest(FnoTaskTestCase):
             self.assertTrue(self.aggregate(round2, 1))
         self.assertEqual(spy.call_count, 1,
                          'only the candidate should be scored')
+
+
+class RegionGateInTaskTest(GateInTaskTest):
+    """The same gate on a schema 1.1 eval store: the report breaks results down by region."""
+
+    def setUp(self):
+        super().setUp()
+        shutil.rmtree(self.eval_store)
+        write_synthetic_store(self.eval_store, n_groups=2, per_group=2,
+                              val_groups=0, seed=9, regions=True)
+
+    def test_candidate_within_margins_is_published_with_its_scores(self):
+        site = self.coordinator(max_rel_l2_increase=1e9,
+                                max_peak_distance_increase_mm=1e9)
+        self.assertTrue(self.aggregate(site, 1))
+        breakdown = self.report(site)['region_breakdown']
+        self.assertEqual(list(breakdown), ['P7', 'P8', 'PO7', 'TP7'])
+        for region in breakdown.values():
+            for part in ('current', 'candidate'):
+                self.assertEqual(region[part]['n'], 1)
+                self.assertEqual(set(region[part]) - {'n'}, set(M.METRICS))
+        self.assertEqual(self.global_out(site)[1]['metrics']['eval']['regions'],
+                         {r: v['candidate'] for r, v in breakdown.items()})
+
+    def test_current_models_score_is_reused_when_the_eval_set_is_unchanged(self):
+        self.second_round_from_the_published_model()
+        with open(os.path.join(self.base, '1', '1', '2', 'eval_report.json')) as f:
+            breakdown = json.load(f)['region_breakdown']
+        self.assertTrue(all(v['current'] for v in breakdown.values()),
+                        'cached region scores of the current model are reused')
 
 
 @skipUnless(HAS_TORCH, 'torch is not installed')

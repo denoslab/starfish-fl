@@ -55,6 +55,14 @@ nvidia-cusparse-cu12 = "12.1.2.141"
 nvidia-nccl-cu12 = "2.16.5"
 nvidia-nvjitlink-cu12 = "12.2.140"
 
+# BabelBrainFno training. Optional: install with --with torch, or build the
+# controller image with INSTALL_TORCH=cpu or INSTALL_TORCH=cuda.
+[tool.poetry.group.torch]
+optional = true
+
+[tool.poetry.group.torch.dependencies]
+torch = ">=2.2,<3"
+
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.4.1"
 autopep8 = "^2.0.2"

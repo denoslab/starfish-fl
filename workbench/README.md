@@ -87,6 +87,33 @@ To stop and remove containers:
 make down
 ```
 
+## BabelBrain FL Profile
+
+A separate stack for the BabelBrain federated learning work: a router, a coordinator site and two participant sites, each reading its own synthetic BabelBrain sample store. It is defined in `compose/babelbrain.yaml` and uses its own Compose project, `starfish-babelbrain`, and its own volumes.
+
+- Controllers use the image `starfish-controller-babelbrain`, built with `INSTALL_TORCH=cpu`, so CPU-only PyTorch and no CUDA libraries.
+- No agent code runs. `STARFISH_DISABLE_AGENTS=1` is set on the router and every controller, no `ANTHROPIC_API_KEY` is passed, and the `BabelBrainFno` task refuses agent hooks on its own.
+- A one-shot `store-init` service writes one synthetic store per site: 20 train and 4 val samples at 250 kHz, with a different seed per site. Each site mounts only its own store, read-only, at `/babelbrain-store`, and finds it through `BABELBRAIN_FL_STORE`.
+
+| Site | Role | Port | Redis DB | Store volume |
+| --- | --- | --- | --- | --- |
+| a | Coordinator | 8001 | 1 | `bb_store_a` |
+| b | Participant | 8002 | 2 | `bb_store_b` |
+| c | Participant | 8003 | 3 | `bb_store_c` |
+
+The router is on port 8000, with user `admin` and password `1234`. Stop the default and e2e stacks first; they use the same ports.
+
+```bash
+make babelbrain-up      # build if needed, start, wait until healthy
+make babelbrain-check   # per site: no anthropic, no agent module, own store readable and read-only
+make babelbrain-e2e     # a BabelBrainFno run through the router API, no dataset upload
+make babelbrain-logs
+make babelbrain-down    # stop, keep volumes
+make babelbrain-clean   # stop and delete volumes, including the stores
+```
+
+`make babelbrain-e2e` needs `pip install -r ../e2e/requirements.txt`. Until SF-04 adds training, the run it starts ends `Failed` at the training step on purpose; the test checks that each site read its own store and that no log holds a store path.
+
 ## Configuration
 
 Environment variables are managed in the `config/` directory:

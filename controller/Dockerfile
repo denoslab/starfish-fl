@@ -70,6 +70,10 @@ COPY --from=r-builder /opt/R/libs /opt/R/libs
 # Enable UNet/image segmentation support (adds TensorFlow + CUDA libs, ~3 GB)
 ARG INSTALL_UNET=false
 
+# PyTorch for BabelBrainFno: false, cpu (CPU-only wheels, for the workbench)
+# or cuda (the poetry torch group, for sites with NVIDIA GPUs)
+ARG INSTALL_TORCH=false
+
 # Install Poetry and Python dependencies (cached unless lock file changes)
 RUN pip3 install --no-cache-dir poetry
 
@@ -81,6 +85,11 @@ RUN poetry lock \
       poetry install --no-root --no-cache --without dev; \
     else \
       poetry install --no-root --no-cache --without dev,unet; \
+    fi \
+    && if [ "$INSTALL_TORCH" = "cpu" ]; then \
+      pip3 install --no-cache-dir "torch>=2.2,<3" --index-url https://download.pytorch.org/whl/cpu; \
+    elif [ "$INSTALL_TORCH" = "cuda" ]; then \
+      poetry install --no-root --no-cache --only torch; \
     fi \
     && pip3 uninstall -y poetry virtualenv pip \
     && rm -rf /usr/local/lib/python3.10/site-packages/poetry \

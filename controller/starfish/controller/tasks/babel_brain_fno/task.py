@@ -18,6 +18,9 @@ HASH_CACHE_NAME = os.path.join('babelbrain_fl', 'sha256_cache.json')
 
 class BabelBrainFno(AbstractTask):
     """
+    No LLM calls in the BabelBrain path: agent hooks are never loaded, even
+    if the task config asks for them.
+
     Config Parameters
     -----------------
     data_source : dict, required
@@ -26,6 +29,8 @@ class BabelBrainFno(AbstractTask):
     min_samples : int, default 20
         Refuse to train with fewer local train samples than this.
     """
+
+    agents_allowed = False
 
     def __init__(self, run):
         super().__init__(run)

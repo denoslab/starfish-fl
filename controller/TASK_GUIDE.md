@@ -668,6 +668,10 @@ The store reader:
 
 For tests and the workbench, write a synthetic store with `python -m starfish.controller.tasks.babel_brain_fno.synthetic <store_root>`.
 
+**No agents:** BabelBrainFno never loads agent hooks, even when its config has an `agent` block. Any site can also switch agent code off for every task with `STARFISH_DISABLE_AGENTS=1`; the router honours the same variable. `python -m starfish.controller.tasks.babel_brain_fno.probe` runs one round and fails if any agent module was imported. The BabelBrain workbench profile, `make babelbrain-up` in `workbench/`, sets all of this up with three sites.
+
+**PyTorch:** in the optional poetry group `torch`. For Docker, build the controller image with `--build-arg INSTALL_TORCH=cpu` or `INSTALL_TORCH=cuda`.
+
 **Configuration Example:**
 ```json
 [

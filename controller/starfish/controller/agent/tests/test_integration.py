@@ -8,10 +8,23 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from unittest.mock import patch, MagicMock, PropertyMock
 from django.test import TestCase
 
 from starfish.controller.agent.hooks import TaskAgentHooks
+
+# These tests need agent hooks, so they must not inherit a site's
+# STARFISH_DISABLE_AGENTS, for example when run inside a workbench container.
+_agents_env = patch.dict(os.environ, {"STARFISH_DISABLE_AGENTS": ""})
+
+
+def setUpModule():
+    _agents_env.start()
+
+
+def tearDownModule():
+    _agents_env.stop()
 
 
 def _make_run(agent_config=None):

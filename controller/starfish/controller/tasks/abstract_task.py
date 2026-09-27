@@ -23,6 +23,13 @@ router_url = os.getenv('ROUTER_URL')
 router_username = os.getenv('ROUTER_USERNAME')
 router_password = os.getenv('ROUTER_PASSWORD')
 
+AGENTS_DISABLED_ENV = 'STARFISH_DISABLE_AGENTS'
+
+
+def agents_disabled_on_site():
+    """True when this site's environment switches all agent code off."""
+    return os.getenv(AGENTS_DISABLED_ENV, '').strip().lower() in ('1', 'true', 'yes')
+
 
 class AbstractTask(ABC):
     """
@@ -46,6 +53,8 @@ class AbstractTask(ABC):
     status = None
     logger = None
     _agent_hooks = None
+    # Tasks that must never call an LLM set this to False
+    agents_allowed = True
 
     def __init__(self, run):
         self.project_id = run['project']
@@ -584,7 +593,14 @@ class AbstractTask(ABC):
                 return False
 
     def _init_agent_hooks(self):
-        """Initialise agent hooks from the current task config (no-op if absent)."""
+        """Initialise agent hooks from the current task config (no-op if absent).
+
+        When the task disallows agents or the site sets
+        ``STARFISH_DISABLE_AGENTS``, no agent module is imported at all.
+        """
+        if not self.agents_allowed or agents_disabled_on_site():
+            self._agent_hooks = None
+            return
         from starfish.controller.agent.hooks import TaskAgentHooks
         try:
             task_config = self.tasks[self.cur_seq - 1].get("config", {}) if self.tasks else {}

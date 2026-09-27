@@ -1,0 +1,253 @@
+# BabelBrain FL workbench profile, SF-06
+#
+#   site-a (coordinator)   - port 8001 - Redis DB 1 - store bb_store_a
+#   site-b (participant 1) - port 8002 - Redis DB 2 - store bb_store_b
+#   site-c (participant 2) - port 8003 - Redis DB 3 - store bb_store_c
+#   router                 - port 8000
+#
+# Controllers use CPU-only torch and no agent code: STARFISH_DISABLE_AGENTS
+# is set everywhere and no ANTHROPIC_API_KEY is passed. Each site mounts its
+# own synthetic sample store read-only at /babelbrain-store. store-init
+# writes the stores once; delete the volumes to regenerate them.
+#
+# Use it through the Makefile: make babelbrain-up, babelbrain-check,
+# babelbrain-down. Do not run it together with the default or e2e workbench,
+# which use the same ports.
+
+x-controller: &controller
+  image: starfish-controller-babelbrain
+  pull_policy: never
+  depends_on:
+    redis:
+      condition: service_healthy
+    router:
+      condition: service_healthy
+    store-init:
+      condition: service_completed_successfully
+
+x-common-env: &common-env
+  ROUTER_URL: http://router:8000/starfish/api/v1
+  ROUTER_USERNAME: admin
+  ROUTER_PASSWORD: "1234"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  BABELBRAIN_FL_STORE: /babelbrain-store
+  STARFISH_DISABLE_AGENTS: "1"
+
+x-site-a-env: &site-a-env
+  <<: *common-env
+  SITE_UID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  REDIS_DB: "1"
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+x-site-b-env: &site-b-env
+  <<: *common-env
+  SITE_UID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  REDIS_DB: "2"
+  CELERY_BROKER_URL: redis://redis:6379/2
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+
+x-site-c-env: &site-c-env
+  <<: *common-env
+  SITE_UID: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  REDIS_DB: "3"
+  CELERY_BROKER_URL: redis://redis:6379/3
+  CELERY_RESULT_BACKEND: redis://redis:6379/3
+
+# The image entrypoint migrates and starts the web server.
+x-web: &web
+  healthcheck:
+    test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8000)); s.close()"]
+    interval: 5s
+    timeout: 5s
+    retries: 30
+    start_period: 20s
+
+x-beat: &beat
+  entrypoint: ["celery", "-A", "starfish", "beat", "-l", "INFO"]
+
+x-run-worker: &run-worker
+  entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "-Q", "starfish.run"]
+
+x-processor-worker: &processor-worker
+  entrypoint: ["celery", "-A", "starfish", "worker", "-l", "INFO", "--concurrency=1", "-Q", "starfish.processor"]
+
+services:
+
+  # ── shared infrastructure ──────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:12.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: UCalgary123
+      POSTGRES_DB: starfish-router
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish-router"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - bb_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:5.0
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  router:
+    build:
+      context: ../../router
+    image: starfish-router
+    pull_policy: never
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '8000:8000'
+    env_file:
+      - ../config/router.env
+    environment:
+      DJANGO_SUPERUSER_PASSWORD: "1234"
+      STARFISH_DISABLE_AGENTS: "1"
+    command: >
+      bash -c "
+        poetry run python3 manage.py migrate --no-input &&
+        (poetry run python3 manage.py createsuperuser --noinput --username admin --email admin@babelbrain.local 2>/dev/null || true) &&
+        poetry run python3 manage.py runserver 0.0.0.0:8000
+      "
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8000)); s.close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      - bb_router_artifacts:/starfish/artifacts
+
+  # Writes one synthetic store per site, once. 20 train and 4 val samples at
+  # 250 kHz each, different random seeds.
+  store-init:
+    build:
+      context: ../../controller
+      args:
+        INSTALL_TORCH: cpu
+    image: starfish-controller-babelbrain
+    pull_policy: never
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      REDIS_DB: "15"
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -e
+        seed=0
+        for site in a b c; do
+          seed=$$((seed + 1))
+          if [ -f /stores/site-$$site/v1/manifest.jsonl ]; then
+            echo "site-$$site store exists, keeping it"
+          else
+            python3 -m starfish.controller.tasks.babel_brain_fno.synthetic /stores/site-$$site \
+              --groups 6 --per-group 4 --val-groups 1 --seed $$seed
+          fi
+        done
+    volumes:
+      - bb_store_a:/stores/site-a
+      - bb_store_b:/stores/site-b
+      - bb_store_c:/stores/site-c
+
+  # ── site-a, coordinator ───────────────────────────────────────────────────
+
+  controller-a:
+    <<: [*controller, *web]
+    ports:
+      - '8001:8000'
+    environment: *site-a-env
+    volumes: &site-a-volumes
+      - bb_controller_a:/starfish-controller/local
+      - bb_store_a:/babelbrain-store:ro
+
+  controller-a-scheduler:
+    <<: [*controller, *beat]
+    environment: *site-a-env
+    volumes: *site-a-volumes
+
+  controller-a-run-worker:
+    <<: [*controller, *run-worker]
+    environment: *site-a-env
+    volumes: *site-a-volumes
+
+  controller-a-processor-worker:
+    <<: [*controller, *processor-worker]
+    environment: *site-a-env
+    volumes: *site-a-volumes
+
+  # ── site-b, participant 1 ─────────────────────────────────────────────────
+
+  controller-b:
+    <<: [*controller, *web]
+    ports:
+      - '8002:8000'
+    environment: *site-b-env
+    volumes: &site-b-volumes
+      - bb_controller_b:/starfish-controller/local
+      - bb_store_b:/babelbrain-store:ro
+
+  controller-b-scheduler:
+    <<: [*controller, *beat]
+    environment: *site-b-env
+    volumes: *site-b-volumes
+
+  controller-b-run-worker:
+    <<: [*controller, *run-worker]
+    environment: *site-b-env
+    volumes: *site-b-volumes
+
+  controller-b-processor-worker:
+    <<: [*controller, *processor-worker]
+    environment: *site-b-env
+    volumes: *site-b-volumes
+
+  # ── site-c, participant 2 ─────────────────────────────────────────────────
+
+  controller-c:
+    <<: [*controller, *web]
+    ports:
+      - '8003:8000'
+    environment: *site-c-env
+    volumes: &site-c-volumes
+      - bb_controller_c:/starfish-controller/local
+      - bb_store_c:/babelbrain-store:ro
+
+  controller-c-scheduler:
+    <<: [*controller, *beat]
+    environment: *site-c-env
+    volumes: *site-c-volumes
+
+  controller-c-run-worker:
+    <<: [*controller, *run-worker]
+    environment: *site-c-env
+    volumes: *site-c-volumes
+
+  controller-c-processor-worker:
+    <<: [*controller, *processor-worker]
+    environment: *site-c-env
+    volumes: *site-c-volumes
+
+volumes:
+  bb_postgres_data: {}
+  bb_router_artifacts: {}
+  bb_controller_a: {}
+  bb_controller_b: {}
+  bb_controller_c: {}
+  bb_store_a: {}
+  bb_store_b: {}
+  bb_store_c: {}

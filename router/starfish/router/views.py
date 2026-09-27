@@ -1,3 +1,4 @@
+import os
 from uuid import UUID
 
 from django.contrib.auth.models import User, Group
@@ -260,7 +261,13 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
         return Response(status=status.HTTP_202_ACCEPTED)
 
     def _run_agent_hooks(self, run, state, project_id):
-        """Invoke agent hooks based on the new run state. Non-blocking."""
+        """Invoke agent hooks based on the new run state. Non-blocking.
+
+        Skipped entirely, without importing agent code, when the router's
+        environment sets ``STARFISH_DISABLE_AGENTS``.
+        """
+        if os.getenv('STARFISH_DISABLE_AGENTS', '').strip().lower() in ('1', 'true', 'yes'):
+            return
         try:
             from starfish.agent import hooks as agent_hooks
 

@@ -74,3 +74,24 @@ class ProjectModelTest(TestCase):
         self.assertEqual(project.name, 'Test Project')
         self.assertEqual(project.batch, 0)
         self.assertIsNotNone(project.created_at)
+
+
+class AgentSwitchTest(TestCase):
+    """STARFISH_DISABLE_AGENTS keeps agent hooks from running on the router."""
+
+    def _call(self, env):
+        import os
+        from unittest.mock import MagicMock, patch
+        from starfish.router.models import Run
+        from starfish.router.views import RunViewSet
+        run = MagicMock(role='CO')
+        with patch.dict(os.environ, env), \
+                patch('starfish.agent.hooks.on_failed') as on_failed:
+            RunViewSet()._run_agent_hooks(run, Run.RunStatus.FAILED, 1)
+        return on_failed
+
+    def test_hooks_run_by_default(self):
+        self._call({'STARFISH_DISABLE_AGENTS': ''}).assert_called_once()
+
+    def test_switch_skips_hooks(self):
+        self._call({'STARFISH_DISABLE_AGENTS': '1'}).assert_not_called()

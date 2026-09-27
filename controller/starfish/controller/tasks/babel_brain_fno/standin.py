@@ -15,7 +15,7 @@ Interface, as agreed for ``tfus_fno``:
 
 Normalisation here is the stand-in's own choice, not the paper's: CT in
 thousands of HU and both fields divided by the in-water peak. The real
-package owns its normalisation; see the CONFIRM items in the sample contract.
+package owns its normalisation, answer T4 in babelbrain-docs/open-questions.md.
 """
 
 import hashlib

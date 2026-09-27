@@ -4,8 +4,9 @@ The coordinator scores the current global model and each aggregated
 candidate on its own held-out store, ``BABELBRAIN_FL_EVAL_STORE``, which
 holds the test subjects exported with the same sample contract. The
 candidate becomes the new global model only if it does not regress by
-more than the configured margins. The defaults allow no regression at all;
-Samuel and Tayeb set the real margins, T8.
+more than the configured margins. The defaults allow no regression at all,
+confirmed on 2026-09-27, answer T8, knowing that a noisy focal metric on a
+small eval set can then hold the current model for several rounds.
 
 Config, under the task's ``gate`` key::
 

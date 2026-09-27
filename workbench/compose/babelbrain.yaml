@@ -7,8 +7,10 @@
 #
 # Controllers use CPU-only torch and no agent code: STARFISH_DISABLE_AGENTS
 # is set everywhere and no ANTHROPIC_API_KEY is passed. Each site mounts its
-# own synthetic sample store read-only at /babelbrain-store. store-init
-# writes the stores once; delete the volumes to regenerate them.
+# own synthetic sample store read-only at /babelbrain-store, and the
+# coordinator also mounts a held-out eval store for the SF-05 gate at
+# /babelbrain-eval-store. store-init writes the stores once; delete the
+# volumes to regenerate them.
 #
 # Use it through the Makefile: make babelbrain-up, babelbrain-check,
 # babelbrain-down. Do not run it together with the default or e2e workbench,
@@ -37,6 +39,7 @@ x-common-env: &common-env
 x-site-a-env: &site-a-env
   <<: *common-env
   SITE_UID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  BABELBRAIN_FL_EVAL_STORE: /babelbrain-eval-store
   REDIS_DB: "1"
   CELERY_BROKER_URL: redis://redis:6379/1
   CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -159,7 +162,14 @@ services:
               --groups 6 --per-group 4 --val-groups 1 --seed $$seed
           fi
         done
+        if [ -f /stores/eval-a/v1/manifest.jsonl ]; then
+          echo "eval store exists, keeping it"
+        else
+          python3 -m starfish.controller.tasks.babel_brain_fno.synthetic /stores/eval-a \
+            --groups 3 --per-group 2 --val-groups 0 --seed 99
+        fi
     volumes:
+      - bb_eval_a:/stores/eval-a
       - bb_store_a:/stores/site-a
       - bb_store_b:/stores/site-b
       - bb_store_c:/stores/site-c
@@ -174,6 +184,7 @@ services:
     volumes: &site-a-volumes
       - bb_controller_a:/starfish-controller/local
       - bb_store_a:/babelbrain-store:ro
+      - bb_eval_a:/babelbrain-eval-store:ro
 
   controller-a-scheduler:
     <<: [*controller, *beat]
@@ -251,3 +262,4 @@ volumes:
   bb_store_a: {}
   bb_store_b: {}
   bb_store_c: {}
+  bb_eval_a: {}

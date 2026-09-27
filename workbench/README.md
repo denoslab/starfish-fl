@@ -94,6 +94,7 @@ A separate stack for the BabelBrain federated learning work: a router, a coordin
 - Controllers use the image `starfish-controller-babelbrain`, built with `INSTALL_TORCH=cpu`, so CPU-only PyTorch and no CUDA libraries.
 - No agent code runs. `STARFISH_DISABLE_AGENTS=1` is set on the router and every controller, no `ANTHROPIC_API_KEY` is passed, and the `BabelBrainFno` task refuses agent hooks on its own.
 - A one-shot `store-init` service writes one synthetic store per site: 20 train and 4 val samples at 250 kHz, with a different seed per site. Each site mounts only its own store, read-only, at `/babelbrain-store`, and finds it through `BABELBRAIN_FL_STORE`.
+- The coordinator, site a, also mounts a held-out eval store of 6 samples at `/babelbrain-eval-store`, `BABELBRAIN_FL_EVAL_STORE`, which the SF-05 evaluation gate scores every candidate model on.
 
 | Site | Role | Port | Redis DB | Store volume |
 | --- | --- | --- | --- | --- |
@@ -112,7 +113,7 @@ make babelbrain-down    # stop, keep volumes
 make babelbrain-clean   # stop and delete volumes, including the stores
 ```
 
-`make babelbrain-e2e` needs `pip install -r ../e2e/requirements.txt`. Until SF-04 adds training, the run it starts ends `Failed` at the training step on purpose; the test checks that each site read its own store and that no log holds a store path.
+`make babelbrain-e2e` needs `pip install -r ../e2e/requirements.txt`. It runs 3 BabelBrainFno rounds on the stand-in model and checks that every run ends `Success`, that each site read its own store and trained, that the router holds one global model per round, and that no log holds a store path. `make babelbrain-transfer` sends a 2 GB file to the router and back and checks peak memory on both sides.
 
 ## Configuration
 

@@ -14,6 +14,7 @@ nothing here logs local paths.
 """
 
 import glob
+import json
 import os
 import re
 import shutil
@@ -372,8 +373,79 @@ class BabelBrainFno(AbstractTask):
     # ── aggregating ─────────────────────────────────────────────────────────
 
     def accept_candidate(self, candidate, metrics) -> bool:
-        """Evaluation gate. SF-05 replaces this with a check on held-out subjects."""
-        return True
+        """Evaluation gate, SF-05: score current and candidate models on the eval store.
+
+        Writes ``eval_report.json`` for the round, uploads it with the logs,
+        and puts the scores of the model that stays current into ``metrics``.
+        """
+        from starfish.controller.tasks.babel_brain_fno import gate as G
+        from starfish.controller.tasks.babel_brain_fno import training as T
+
+        cfg = G.gate_config(self._config())
+        if not cfg['enabled']:
+            metrics['gate'] = 'disabled'
+            self.logger.warning(
+                'Evaluation gate disabled by config; candidate accepted unchecked')
+            return True
+        root = os.getenv(G.EVAL_STORE_ENV)
+        if not root:
+            raise TaskError('{} is not set on the coordinator; set it, or disable the gate '
+                            'explicitly with "gate": {{"enabled": false}}'.format(G.EVAL_STORE_ENV))
+        try:
+            store = SampleStore(root, cache_path=os.path.join(
+                file_utils.base_folder, 'babelbrain_fl', 'eval_sha256_cache.json'), logger=self.logger)
+            records = store.samples(self.bucket_hz())
+        except StoreError as e:
+            raise TaskError('eval store unavailable: {}'.format(e))
+        if not records:
+            raise TaskError(
+                'eval store has no samples at {} Hz'.format(self.bucket_hz()))
+
+        digest = G.store_digest(records)
+        base, base_meta = self.current_global()
+        complex_keys = base_meta.get('complex_keys', [])
+        pkg, device = self.package(), T.pick_device(
+            self._config().get('device', 'auto'))
+        cached = (base_meta.get('metrics') or {}).get('eval') or {}
+        if cached.get('store_digest') == digest and \
+                cached.get('model_version') == base_meta['model_version']:
+            current = cached['scores']
+        else:
+            current = G.evaluate(base, complex_keys, pkg,
+                                 self.bucket_hz(), records, device)
+        scores = G.evaluate(candidate, complex_keys, pkg,
+                            self.bucket_hz(), records, device)
+        accepted, reasons = G.decide(scores, current, cfg)
+
+        report = {
+            'round': self._round(), 'bucket_hz': self.bucket_hz(), 'eval_samples': len(records),
+            'store_digest': digest, 'current_model': base_meta['model_version'],
+            'margins': {k: cfg[k] for k in cfg if k != 'enabled'},
+            'current': current, 'candidate': scores, 'accepted': accepted, 'reasons': reasons,
+            'region_breakdown': None if not G.REGION_BREAKDOWN_AVAILABLE else {},
+        }
+        self._write_eval_report(report)
+        metrics['eval'] = {'store_digest': digest,
+                           'scores': scores if accepted else current}
+        self.logger.info('Gate: eval rel l2 {:.3f}% to {:.3f}%, peak distance {:.3f} to {:.3f} mm '
+                         'on {} samples; {}'.format(
+                             current['rel_l2_pct']['mean'], scores['rel_l2_pct']['mean'],
+                             current['peak_distance_mm']['mean'], scores['peak_distance_mm']['mean'],
+                             len(records), 'accepted' if accepted else 'rejected: ' + '; '.join(reasons)))
+        return accepted
+
+    def _write_eval_report(self, report):
+        path = file_utils.gen_url(
+            self.run_id, self.cur_seq, self._round(), 'eval_report.json')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(report, f, indent=2)
+        try:
+            transfer.upload_file(path, self.run_id, self.cur_seq, self._round(), 'logs',
+                                 name='eval_report.json')
+        except transfer.TransferFailed as e:
+            self.logger.warning(
+                'Could not upload the eval report: {}'.format(e))
 
     def do_aggregate(self) -> bool:
         try:
@@ -426,6 +498,8 @@ class BabelBrainFno(AbstractTask):
         else:
             # The previous global model stays current
             arrays, version = base, base_meta['model_version']
+        if isinstance(metrics.get('eval'), dict):
+            metrics['eval']['model_version'] = version
         save_artifact(self._global_out_path(), arrays, self._meta(
             'global', version, metrics['train_samples'], metrics,
             base_meta.get('complex_keys', []), base_version=base_meta['model_version']))

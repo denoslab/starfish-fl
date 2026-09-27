@@ -33,7 +33,7 @@ DATA_SOURCE = {'type': 'babelbrain_store', 'bucket_hz': 250000}
 def make_run(run_id=1, role='coordinator', current_round=1, total_round=3, **config):
     cfg = {'total_round': total_round, 'current_round': current_round,
            'data_source': dict(DATA_SOURCE), 'min_samples': 4, 'local_epochs': 1,
-           'batch_size': 2, 'lr': 1e-3, 'device': 'cpu'}
+           'batch_size': 2, 'lr': 1e-3, 'device': 'cpu', 'gate': {'enabled': False}}
     cfg.update(config)
     return {'id': run_id, 'project': 7, 'batch': 1, 'role': role, 'status': 'Standby',
             'cur_seq': 1, 'tasks': [{'seq': 1, 'model': 'BabelBrainFno', 'config': cfg}]}

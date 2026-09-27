@@ -14,10 +14,12 @@ Step 4 - Every run leaves Standby on its own and all three rounds finish
 Step 5 - The router holds one global model per round
 Step 6 - Every site's uploaded log shows it read its own store and trained,
          and no log holds a store path or an agent message
+Step 7 - The coordinator's evaluation gate scored the last round, SF-05
 
 Uses the stand-in model on CPU, SF-04.
 """
 import io
+import json
 import time
 import zipfile
 
@@ -169,6 +171,12 @@ def test_runs_finish_and_logs_show_each_store(started_run):
     combined = "\n".join(texts)
     assert sum(STORE_LINE in t for t in texts) == 3, combined[-2000:]
     assert sum(TRAINED_LINE in t for t in texts) == 3, combined[-2000:]
+    # The SF-05 gate scored the round's candidate and uploaded its report
+    reports = [json.loads(t) for t in texts if t.lstrip().startswith("{")]
+    assert len(reports) == 1, [t[:80] for t in texts]
+    assert reports[0]["round"] == TOTAL_ROUNDS
+    assert reports[0]["eval_samples"] == 6
+    assert {"current", "candidate", "accepted"} <= set(reports[0])
     assert "/babelbrain-store" not in combined
     assert "[Agent]" not in combined
 

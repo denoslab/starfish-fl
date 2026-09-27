@@ -158,3 +158,80 @@ def download_all(run_id, file_type, folder, task_seq=None, round_seq=None, all_r
     """Download every listed file; returns their paths."""
     return [download_file(run_id, file_type, entry, folder, all_runs=all_runs)
             for entry in list_files(run_id, file_type, task_seq, round_seq, all_runs)]
+
+
+# ── model registry, SF-12 ─────────────────────────────────────────────────────
+
+def publish_model(run_id, task_seq, round_seq, bucket_hz, source_version, parent=None,
+                  eval_report=None):
+    """Coordinator: register a round's aggregated artifact as an approved model version."""
+    router, auth = _router()
+    body = {'run': run_id, 'task_seq': task_seq, 'round_seq': round_seq, 'bucket_hz': bucket_hz,
+            'source_version': source_version, 'parent': parent, 'eval_report': eval_report or {}}
+
+    def attempt():
+        response = requests.post('{}/registry/'.format(router), json=body, auth=auth,
+                                 timeout=TIMEOUT)
+        _check(response, 'publish')
+        return response.json()
+
+    return _with_retries('publish of {}'.format(source_version), attempt, _retries())
+
+
+def list_models(bucket_hz):
+    """Approved model versions for a bucket, newest first."""
+    router, auth = _router()
+
+    def attempt():
+        response = requests.get('{}/registry/'.format(router), params={'bucket_hz': bucket_hz},
+                                auth=auth, timeout=TIMEOUT)
+        _check(response, 'registry listing')
+        return response.json()
+
+    return _with_retries('registry listing', attempt, _retries())
+
+
+def latest_model(bucket_hz):
+    """The newest approved model version for a bucket, or None."""
+    router, auth = _router()
+
+    def attempt():
+        response = requests.get('{}/registry/latest/'.format(router),
+                                params={'bucket_hz': bucket_hz}, auth=auth, timeout=TIMEOUT)
+        if response.status_code == 404:
+            return None
+        _check(response, 'registry lookup')
+        return response.json()
+
+    return _with_retries('registry lookup', attempt, _retries())
+
+
+def download_model(entry, folder, retries=None, sleep=None):
+    """Stream an approved model into ``folder`` and keep it only if its SHA-256 matches."""
+    router, auth = _router()
+    version, expected = entry['version'], entry['sha256']
+    if os.path.basename(version) != version or version.startswith('.'):
+        raise TransferFailed('refusing model version {!r}'.format(version))
+    os.makedirs(folder, exist_ok=True)
+    final_path = os.path.join(folder, version + '.safetensors')
+
+    def attempt():
+        fd, tmp_path = tempfile.mkstemp(dir=folder, prefix='.download-')
+        digest = hashlib.sha256()
+        try:
+            with os.fdopen(fd, 'wb') as out, requests.get(
+                    '{}/registry/file/'.format(router), params={'version': version}, auth=auth,
+                    stream=True, timeout=TIMEOUT) as response:
+                _check(response, 'model download')
+                for block in response.iter_content(CHUNK_BYTES):
+                    digest.update(block)
+                    out.write(block)
+            if digest.hexdigest() != expected:
+                raise _Retryable('SHA-256 mismatch for {}'.format(version))
+            os.replace(tmp_path, final_path)
+            return final_path
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    return _with_retries('download of {}'.format(version), attempt, retries or _retries(), sleep)

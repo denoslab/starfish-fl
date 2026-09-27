@@ -252,3 +252,34 @@ class StoredFile(models.Model):
 
     def __str__(self):
         return self.path
+
+
+class ModelVersion(models.Model):
+    """
+    An approved global model in the registry, SF-12.
+
+    Only a model that passed the coordinator's evaluation gate is published.
+    The registry keeps its own copy of the file, so it outlives the run files.
+    """
+    version = models.CharField(max_length=40, unique=True)
+    bucket_hz = models.IntegerField()
+    sequence = models.IntegerField()
+    path = models.CharField(max_length=500)
+    size = models.BigIntegerField()
+    sha256 = models.CharField(max_length=64)
+    parent = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL)
+    project = models.ForeignKey(Project, null=True, on_delete=models.SET_NULL)
+    batch = models.IntegerField()
+    task_seq = models.IntegerField()
+    round_seq = models.IntegerField()
+    source_version = models.CharField(max_length=200)
+    eval_report = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('bucket_hz', 'sequence')]
+        ordering = ['bucket_hz', '-sequence']
+
+    def __str__(self):
+        return self.version

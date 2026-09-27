@@ -28,6 +28,8 @@ router_v1.register(r'project-participants',
                    views.ProjectParticipantViewSet, basename="project-participant")
 router_v1.register(r'runs',
                    views.RunViewSet, basename="run")
+router_v1.register(r'registry', views.ModelRegistryViewSet,
+                   basename="registry")
 router_v1.register(r'runs-action', views.RunsActionViewSet,
                    basename="runs-action")
 

@@ -94,6 +94,7 @@ class BabelBrainFno(AbstractTask):
         self.train_records = []
         self.val_records = []
         self._global = None
+        self._eval_report = None
 
     # ── config and locations ────────────────────────────────────────────────
 
@@ -491,6 +492,7 @@ class BabelBrainFno(AbstractTask):
             'region_breakdown': None if not G.REGION_BREAKDOWN_AVAILABLE else {},
         }
         self._write_eval_report(report)
+        self._eval_report = report
         metrics['eval'] = {'store_digest': digest,
                            'scores': scores if accepted else current}
         self.logger.info('Gate: eval rel l2 {:.3f}% to {:.3f}%, peak distance {:.3f} to {:.3f} mm '
@@ -590,4 +592,21 @@ class BabelBrainFno(AbstractTask):
         self.logger.info('Round {}: aggregated {} deltas, {} samples; global model {} {}'.format(
             task_round, len(sites), metrics['train_samples'], version,
             'accepted' if accepted else 'rejected by the gate, previous model kept'))
-        return self.upload(True)
+        if not self.upload(True):
+            return False
+        if accepted and isinstance(metrics.get('eval'), dict):
+            self._publish(version)
+        return True
+
+    def _publish(self, version):
+        """Register a gate-approved global model, SF-12. Failure is logged, not fatal."""
+        try:
+            parent = transfer.latest_model(self.bucket_hz())
+            entry = transfer.publish_model(
+                self.run_id, self.cur_seq, self._round(), self.bucket_hz(), version,
+                parent=parent['version'] if parent else None, eval_report=self._eval_report)
+            self.logger.info('Published approved model {} for {} Hz, parent {}'.format(
+                entry['version'], self.bucket_hz(), entry.get('parent')))
+        except transfer.TransferFailed as e:
+            self.logger.error(
+                'Could not publish the approved model to the registry: {}'.format(e))

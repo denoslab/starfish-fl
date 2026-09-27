@@ -201,3 +201,21 @@ def test_router_holds_one_global_model_per_round(started_run):
     names = sorted(f["name"] for f in response.json())
     assert len(names) == TOTAL_ROUNDS, names
     assert all(f["sha256"] and f["size"] > 0 for f in response.json())
+
+
+def test_registry_serves_the_latest_approved_model(started_run):
+    """SF-12: list the approved 250 kHz models, download the latest, verify its checksum."""
+    import hashlib
+    # The run's rounds are finished once the earlier tests pass
+    listing = api("GET", "/registry/", params={"bucket_hz": 250000})
+    assert listing.ok, listing.text
+    versions = listing.json()
+    assert versions, "no approved model: the gate rejected every round"
+    latest = api("GET", "/registry/latest/",
+                 params={"bucket_hz": 250000}).json()
+    assert latest["version"] == versions[0]["version"]
+    response = requests.get(ROUTER + "/registry/file/", params={"version": latest["version"]},
+                            auth=AUTH, timeout=60)
+    assert response.ok
+    assert hashlib.sha256(response.content).hexdigest() == latest["sha256"]
+    assert response.headers["X-Starfish-SHA256"] == latest["sha256"]

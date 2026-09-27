@@ -16,7 +16,7 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
-from starfish.router.models import Site, Project, ProjectParticipant, Run, StoredFile
+from starfish.router.models import Site, Project, ProjectParticipant, Run, StoredFile, ModelVersion
 from starfish.router.serializers import SiteSerializer, \
     ProjectSerializer, ProjectParticipantSerializer, \
     ProjectParticipantCreateSerializer, RunSerializer, \
@@ -653,3 +653,118 @@ class RunsActionViewSet(ViewSet):
                     run.save()
                 return Response("Update run {} status to {}".format(run_id, target_status),
                                 status=status.HTTP_202_ACCEPTED)
+
+
+class ModelRegistryViewSet(ViewSet):
+    """
+    Approved global models per frequency bucket, SF-12.
+
+    - ``POST registry/`` publishes a run's aggregated artifact: run, task_seq,
+      round_seq, bucket_hz, source_version, optional parent and eval_report.
+      Only the coordinator's run can publish.
+    - ``GET registry/?bucket_hz=`` lists approved versions, newest first.
+    - ``GET registry/latest/?bucket_hz=`` gives the newest one.
+    - ``GET registry/file/?version=`` streams its file with ``X-Starfish-SHA256``.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @staticmethod
+    def _describe(mv):
+        return {'version': mv.version, 'bucket_hz': mv.bucket_hz, 'sha256': mv.sha256,
+                'size': mv.size, 'parent': mv.parent.version if mv.parent else None,
+                'source_version': mv.source_version, 'project': mv.project_id,
+                'batch': mv.batch, 'task_seq': mv.task_seq, 'round_seq': mv.round_seq,
+                'eval_report': mv.eval_report, 'created_at': mv.created_at}
+
+    @staticmethod
+    def _bucket(request):
+        try:
+            return int(request.GET.get('bucket_hz'))
+        except (TypeError, ValueError):
+            raise TransferError('bucket_hz must be an integer')
+
+    def list(self, request):
+        try:
+            bucket = self._bucket(request)
+        except TransferError as e:
+            return Response(str(e), status=e.status)
+        return Response([self._describe(mv) for mv in ModelVersion.objects.filter(bucket_hz=bucket)])
+
+    @action(detail=False, methods=['GET'], url_path='latest')
+    def latest(self, request):
+        try:
+            bucket = self._bucket(request)
+        except TransferError as e:
+            return Response(str(e), status=e.status)
+        mv = ModelVersion.objects.filter(bucket_hz=bucket).first()
+        if mv is None:
+            return Response('no approved model for this bucket', status=status.HTTP_404_NOT_FOUND)
+        return Response(self._describe(mv))
+
+    @action(detail=False, methods=['GET'], url_path='file')
+    def file(self, request):
+        mv = ModelVersion.objects.filter(
+            version=request.GET.get('version')).first()
+        if mv is None or not os.path.isfile(mv.path):
+            return Response('model version not found', status=status.HTTP_404_NOT_FOUND)
+        response = FileResponse(open(mv.path, 'rb'), as_attachment=True,
+                                filename='{}.safetensors'.format(mv.version))
+        response['X-Starfish-SHA256'] = mv.sha256
+        return response
+
+    def create(self, request):
+        data = request.data
+        try:
+            run = Run.objects.filter(id=data.get('run')).first()
+            if run is None:
+                raise TransferError('run not found', status=404)
+            if run.role != ProjectParticipant.Role.COORDINATOR:
+                raise TransferError(
+                    'only the coordinator can publish a model', status=403)
+            task_seq, round_seq = int(
+                data.get('task_seq')), int(data.get('round_seq'))
+            bucket = int(data.get('bucket_hz'))
+            source_version = str(data.get('source_version') or '')
+            if not source_version:
+                raise TransferError('source_version is required')
+            paths = get_file_urls([run], task_seq, round_seq, 'artifacts')
+            if len(paths) != 1 or not os.path.isfile(paths[0]):
+                raise TransferError('expected one aggregated artifact for that round, found {}'.format(
+                    len(paths)), status=404)
+            parent = None
+            if data.get('parent'):
+                parent = ModelVersion.objects.filter(version=data.get('parent'),
+                                                     bucket_hz=bucket).first()
+                if parent is None:
+                    raise TransferError('parent version not found', status=404)
+        except (TypeError, ValueError):
+            return Response('task_seq, round_seq and bucket_hz must be integers',
+                            status=status.HTTP_400_BAD_REQUEST)
+        except TransferError as e:
+            return Response(str(e), status=e.status)
+
+        existing = ModelVersion.objects.filter(project_id=run.project_id, batch=run.batch,
+                                               task_seq=task_seq, round_seq=round_seq).first()
+        if existing is not None:
+            return Response(self._describe(existing), status=status.HTTP_200_OK)
+        source = paths[0]
+        info = RunsActionViewSet._describe(source)
+        with transaction.atomic():
+            last = ModelVersion.objects.select_for_update().filter(bucket_hz=bucket).first()
+            sequence = (last.sequence + 1) if last else 1
+            version = '{}k-v{:04d}'.format(bucket // 1000, sequence)
+            folder = os.path.join(file_util.base_folder, 'registry')
+            os.makedirs(folder, exist_ok=True)
+            target = os.path.join(folder, version + '.safetensors')
+            shutil.copyfile(source, target)
+            if file_util.sha256_of(target) != info['sha256']:
+                os.remove(target)
+                return Response('copy of the artifact does not match its hash',
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            report = data.get('eval_report') or {}
+            mv = ModelVersion.objects.create(
+                version=version, bucket_hz=bucket, sequence=sequence, path=target,
+                size=info['size'], sha256=info['sha256'], parent=parent, project_id=run.project_id,
+                batch=run.batch, task_seq=task_seq, round_seq=round_seq,
+                source_version=source_version, eval_report=report if isinstance(report, dict) else {})
+        return Response(self._describe(mv), status=status.HTTP_201_CREATED)

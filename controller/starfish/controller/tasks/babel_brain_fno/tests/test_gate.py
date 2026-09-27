@@ -210,3 +210,50 @@ class GateInTaskTest(FnoTaskTestCase):
             self.assertTrue(self.aggregate(round2, 1))
         self.assertEqual(spy.call_count, 1,
                          'only the candidate should be scored')
+
+
+@skipUnless(HAS_TORCH, 'torch is not installed')
+class RegistryPublishTest(GateInTaskTest):
+    """SF-12: only a gate-approved global model goes to the registry."""
+
+    def setUp(self):
+        super().setUp()
+        base = 'starfish.controller.tasks.babel_brain_fno.task.transfer.'
+        self.latest = patch(base + 'latest_model',
+                            return_value={'version': '250k-v0004'}).start()
+        self.publish = patch(base + 'publish_model', return_value={
+            'version': '250k-v0005', 'parent': '250k-v0004'}).start()
+        self.addCleanup(patch.stopall)
+
+    def test_accepted_model_is_published_with_its_parent_and_report(self):
+        site = self.coordinator(max_rel_l2_increase=1e9,
+                                max_peak_distance_increase_mm=1e9)
+        self.assertTrue(self.aggregate(site, 1))
+        self.publish.assert_called_once()
+        args, kwargs = self.publish.call_args
+        self.assertEqual(args[:5], (1, 1, 1, 250000,
+                         'standin-250k-p7-b1-t1-r1'))
+        self.assertEqual(kwargs['parent'], '250k-v0004')
+        self.assertTrue(kwargs['eval_report']['accepted'])
+
+    def test_rejected_model_is_not_published(self):
+        site = self.coordinator()
+        path = os.path.join(site._mids_dir(), '1-1-1-mid-artifacts')
+        delta, meta = load_artifact(path)
+        save_artifact(path, {k: (v + 50.0).astype(v.dtype)
+                      for k, v in delta.items()}, meta)
+        self.assertTrue(self.aggregate(site, 1))
+        self.publish.assert_not_called()
+
+    def test_ungated_model_is_not_published(self):
+        site = self.trained_site(1)
+        self.deliver(site, site)
+        self.assertTrue(self.aggregate(site, 1))
+        self.publish.assert_not_called()
+
+    def test_publish_failure_does_not_fail_the_round(self):
+        from starfish.controller.file.transfer import TransferFailed
+        self.publish.side_effect = TransferFailed('router down')
+        site = self.coordinator(max_rel_l2_increase=1e9,
+                                max_peak_distance_increase_mm=1e9)
+        self.assertTrue(self.aggregate(site, 1))

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://denoslab.com/schemas/babelbrain-fl/manifest-1.0.json",
+  "title": "BabelBrain FL sample manifest line, schema 1.0",
+  "type": "object",
+  "oneOf": [
+    {
+      "required": [
+        "sample_id",
+        "schema_version",
+        "file",
+        "sha256",
+        "frequency_hz",
+        "bucket_hz",
+        "spacing_mm",
+        "babelbrain_version",
+        "tx_system",
+        "ct_type",
+        "group_id",
+        "split",
+        "source"
+      ],
+      "properties": {
+        "sample_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schema_version": {
+          "const": "1.0"
+        },
+        "file": {
+          "type": "string",
+          "pattern": "^(250000|500000|750000)/[0-9a-f-]{36}\\.h5$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frequency_hz": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bucket_hz": {
+          "enum": [
+            250000,
+            500000,
+            750000
+          ]
+        },
+        "ppw": {
+          "type": "number"
+        },
+        "spacing_mm": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "babelbrain_version": {
+          "type": "string"
+        },
+        "tx_system": {
+          "type": "string"
+        },
+        "focal_length_mm": {
+          "type": "number"
+        },
+        "aperture_mm": {
+          "type": "number"
+        },
+        "ct_type": {
+          "enum": [
+            "CT"
+          ]
+        },
+        "group_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "split": {
+          "enum": [
+            "train",
+            "val"
+          ]
+        },
+        "exported_month": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}$"
+        },
+        "source": {
+          "enum": [
+            "live",
+            "backfill"
+          ]
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the source DataForSim.h5, used locally to avoid exporting the same run twice"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "required": [
+        "sample_id",
+        "deleted"
+      ],
+      "properties": {
+        "sample_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "deleted": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

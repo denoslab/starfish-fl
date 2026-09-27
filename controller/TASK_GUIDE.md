@@ -65,6 +65,7 @@ The system validates:
 4. **seq must be** a non-negative integer
 5. **model must exist** in `starfish/controller/tasks/`
 6. **config must be** a non-empty dictionary
+7. **data_source**, when present, must be a known local data source with only its allowed keys. See BabelBrainFno below
 
 ## Currently Available Models
 
@@ -642,6 +643,49 @@ Never use `pickle`, `dill`, `joblib`, `pandas.read_pickle`, `numpy.load(allow_pi
   }
 ]
 ```
+
+### BabelBrainFno
+
+**Description:** Federated fine-tuning of the tFUS-FNO surrogate on samples exported by BabelBrain. Work in progress: the local data source is in place, training and aggregation arrive with SF-04, and until then a run fails at the training step on purpose.
+
+**File Location:** `starfish/controller/tasks/babel_brain_fno/`
+
+**Dataset Requirements:** None uploaded. Each site reads its own BabelBrain sample store in place, laid out as in the BabelBrain FL sample contract v1. Set the store folder in the site's environment:
+
+```text
+BABELBRAIN_FL_STORE=/path/to/BabelBrainFL/samples
+```
+
+Because the config declares a `data_source`, the first round moves from Standby to Preparing without a dataset upload. The task config can never name a path: a `data_source` with any key other than `type` and `bucket_hz` is rejected, both when the project is created and on each site.
+
+The store reader:
+
+- validates each manifest line against `babel_brain_fno/manifest.schema.json`, a copy of `specs/manifest.schema.json` from `babelbrain-docs`;
+- drops samples with a tombstone line, wherever it appears in the manifest;
+- rejects files outside the store, including through symlinks, and files whose SHA-256 does not match the manifest;
+- caches good hashes in the controller's own folder, `babelbrain_fl/sha256_cache.json`, keyed by sample ID, size and modification time, and never writes into the store;
+- logs sample IDs and rejection reasons only, never paths, because task logs are uploaded to the router.
+
+For tests and the workbench, write a synthetic store with `python -m starfish.controller.tasks.babel_brain_fno.synthetic <store_root>`.
+
+**Configuration Example:**
+```json
+[
+  {
+    "seq": 1,
+    "model": "BabelBrainFno",
+    "config": {
+      "total_round": 1,
+      "current_round": 1,
+      "data_source": {"type": "babelbrain_store", "bucket_hz": 250000},
+      "min_samples": 20
+    }
+  }
+]
+```
+
+- `bucket_hz`: one of 250000, 500000 or 750000.
+- `min_samples`: default 20. A site with fewer train samples in the bucket fails the preparing step.
 
 ## Writing R-Based Tasks
 

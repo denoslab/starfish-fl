@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from starfish.controller.file import file_utils
 from starfish.controller.file.file_utils import read_file_from_url, gen_logs_url, download_all_mid_artifacts, \
     gen_mid_artifacts_url, create_if_not_exist, gen_artifacts_url, download_artifacts
+from starfish.controller.tasks.data_source import get_data_source, validate_data_source
 # take environment variables from .env.
 from starfish.controller.utils import format_status
 
@@ -84,6 +85,14 @@ class AbstractTask(ABC):
                     self.notify(3)
                 else:
                     self.notify(1)
+            elif self.data_source() is not None:
+                # Local data source: no dataset upload, start preparing now
+                error = validate_data_source(self.data_source())
+                if error:
+                    self.logger.error(error)
+                    self.notify(1)
+                else:
+                    self.notify(3)
         except Exception as e:
             self.logger.warning("Exception in standby status: {}".format(e))
             self.notify(1)
@@ -547,6 +556,12 @@ class AbstractTask(ABC):
         return False
 
     # This method can be used to get current round of current task
+
+    def data_source(self):
+        """The current task's ``data_source`` config block, or None."""
+        if self.tasks and self.cur_seq and self.cur_seq <= len(self.tasks):
+            return get_data_source(self.tasks[self.cur_seq - 1].get('config'))
+        return None
 
     def get_round(self):
         if self.tasks and len(self.tasks) > 0:

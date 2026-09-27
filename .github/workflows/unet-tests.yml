@@ -6,6 +6,8 @@ on:
     paths:
       - 'controller/starfish/controller/tasks/federated_unet/**'
       - 'controller/starfish/controller/file/file_utils.py'
+      - 'controller/starfish/controller/file/artifact_io.py'
+      - 'controller/tests/test_unet_integration.py'
       - 'controller/pyproject.toml'
       - '.github/workflows/unet-tests.yml'
   push:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'controller/starfish/controller/tasks/federated_unet/**'
       - 'controller/starfish/controller/file/file_utils.py'
+      - 'controller/starfish/controller/file/artifact_io.py'
+      - 'controller/tests/test_unet_integration.py'
       - 'controller/pyproject.toml'
       - '.github/workflows/unet-tests.yml'
 

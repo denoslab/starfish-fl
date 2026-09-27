@@ -18,6 +18,8 @@ django-bootstrap-v5 = "^1.0.11"
 django-celery-beat = "^2.5.0"
 # for ML
 numpy = ">=1.26.0,<2.0.0"
+# safe serialization of model artifacts exchanged between sites
+safetensors = ">=0.4.0"
 scikit-learn = ">=1.3.0"
 # for statistical models
 statsmodels = ">=0.14.0"

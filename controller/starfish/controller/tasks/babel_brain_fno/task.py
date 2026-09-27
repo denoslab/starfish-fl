@@ -282,7 +282,13 @@ class BabelBrainFno(AbstractTask):
                     'Round 1 starts from seed model {}'.format(meta['model_version']))
             else:
                 if self._global is None:
-                    self._global = self._load_downloaded_global()
+                    try:
+                        self._global = self._load_downloaded_global()
+                    except TaskError:
+                        # Not validated in this process, for example after a restart
+                        if not self.validate():
+                            raise TaskError(
+                                'previous global model unavailable')
                 arrays, meta = self._global
             self._set_global(arrays, meta)
         except (TaskError, ArtifactError, W.WeightsError, ImportError) as e:

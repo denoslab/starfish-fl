@@ -117,3 +117,40 @@ class RoundQuorumTest(TestCase):
         self.assertGreater(AbstractTask._seconds_since(
             '2020-01-01T00:00:00.123456+00:00'), 1e8)
         self.assertEqual(AbstractTask._seconds_since(None), 0.0)
+
+
+@patch('starfish.controller.file.file_utils.base_folder',
+       os.path.join(tempfile.gettempdir(), 'starfish-quorum-test'))
+class MissedPreparingTest(TestCase):
+    """A site that reaches Running without having seen Preparing prepares first."""
+
+    @patch.object(_Task, 'notify')
+    def test_running_prepares_when_preparing_was_missed(self, notify):
+        run = run_dict(role='participant')
+        task = _Task(run)
+        with patch.object(_Task, 'prepare_data', return_value=True) as prepare, \
+                patch.object(_Task, 'training', return_value=True) as train:
+            task.running(run)
+        prepare.assert_called_once()
+        train.assert_called_once()
+        notify.assert_called_once_with(5)
+
+    @patch.object(_Task, 'notify')
+    def test_running_does_not_prepare_twice(self, notify):
+        run = run_dict(role='participant')
+        task = _Task(run)
+        with patch.object(_Task, 'prepare_data', return_value=True) as prepare, \
+                patch.object(_Task, 'training', return_value=True):
+            task.preparing(run)
+            task.running(run)
+        prepare.assert_called_once()
+
+    @patch.object(_Task, 'notify')
+    def test_failed_late_preparation_fails_the_step(self, notify):
+        run = run_dict(role='participant')
+        task = _Task(run)
+        with patch.object(_Task, 'prepare_data', return_value=False), \
+                patch.object(_Task, 'training') as train:
+            task.running(run)
+        train.assert_not_called()
+        notify.assert_called_once_with(1)

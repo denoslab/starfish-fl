@@ -124,6 +124,7 @@ class AbstractTask(ABC):
                 if self.round_failed() or not self.prepare_data():
                     self.notify(1, param={'update_all': True})
                     return
+                self._prepared_for = self._round_key()
                 action, sit_out = self.round_quorum('preparing')
                 if action == 'fail':
                     self.notify(1, param={'update_all': True})
@@ -133,6 +134,7 @@ class AbstractTask(ABC):
                 if not self.prepare_data():
                     self.notify(1, param={'update_all': False})
                     return
+                self._prepared_for = self._round_key()
                 if self.status == s:
                     self.logger.warning(
                         "Already in status {}. Ignore message".format(s))
@@ -158,6 +160,19 @@ class AbstractTask(ABC):
                 return
             else:
                 self.status = s
+            if args and isinstance(args[0], dict):
+                # The round may have moved on since this instance last saw the run
+                self.cur_seq = args[0].get('cur_seq', self.cur_seq)
+                self.tasks = args[0].get('tasks', self.tasks)
+            # A site can reach Running without having seen Preparing, when the
+            # coordinator moves every run on between two polls: prepare first
+            if getattr(self, '_prepared_for', None) != self._round_key():
+                self.logger.info(
+                    'Preparing before training: the Preparing step was missed')
+                if not self.prepare_data():
+                    self.notify(1)
+                    return
+                self._prepared_for = self._round_key()
 
             valid = self.training()
             if valid:
@@ -616,6 +631,9 @@ class AbstractTask(ABC):
                 len(ready), len(active), sorted(late + failed)))
             return 'proceed', sorted(late + failed)
         return 'wait', []
+
+    def _round_key(self):
+        return self.cur_seq, self.get_round()
 
     @staticmethod
     def _update_all_param(sit_out):

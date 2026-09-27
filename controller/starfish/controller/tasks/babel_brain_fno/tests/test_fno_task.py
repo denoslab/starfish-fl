@@ -304,3 +304,29 @@ class StandinTest(TestCase):
     def test_arch_hash_is_stable(self):
         self.assertEqual(len(standin.ARCH_HASH), 16)
         self.assertEqual(standin.ARCH_HASH, standin.ARCH_HASH.lower())
+
+
+@skipUnless(HAS_TORCH, 'torch is not installed')
+class RestartTest(FnoTaskTestCase):
+    """A later round that reaches preparing without validation fetches the global model."""
+
+    def test_prepare_data_validates_when_it_has_to(self):
+        co = self.trained_site(1)
+        self.deliver(co, co)
+        self.assertTrue(self.aggregate(co, 1))
+        published = co._global_out_path()
+
+        def fake_download(run_id, file_type, folder, task_seq=None, round_seq=None, all_runs=False):
+            os.makedirs(folder, exist_ok=True)
+            target = os.path.join(folder, '1-1-1-artifacts')
+            shutil.copy(published, target)
+            return [target]
+
+        fresh = BabelBrainFno(
+            make_run(run_id=2, role='participant', current_round=2))
+        with patch('starfish.controller.tasks.babel_brain_fno.task.transfer.download_all',
+                   side_effect=fake_download) as download:
+            self.assertTrue(fresh.prepare_data())
+        download.assert_called_once()
+        self.assertEqual(fresh.current_global()[
+                         1]['model_version'], 'standin-250k-p7-b1-t1-r1')

@@ -107,7 +107,11 @@ def process_task(args, run, is_retry):
     model = tasks[cur_seq - 1]['model']
     status = format_status(run['status'])
     model_id = "{}_{}".format(run_id, cur_seq)
-    
+    if is_stale(run):
+        logger.info("Dropped a stale message for run {}: {} is no longer its state".format(
+            run_id, status))
+        return
+
     try:
         snake_name = camel_to_snake(model)
         klass = None
@@ -130,6 +134,36 @@ def process_task(args, run, is_retry):
 
     except (ImportError, AttributeError) as e:
         logger.warn("{} not found with error: {}".format(model, e))
+
+
+def _progress(run):
+    """Status, task and round of a run record, for telling stale messages apart."""
+    cur_seq = run.get('cur_seq')
+    try:
+        current_round = run['tasks'][cur_seq -
+                                     1]['config'].get('current_round')
+    except (KeyError, IndexError, TypeError):
+        current_round = None
+    return format_status(run.get('status')), cur_seq, current_round
+
+
+def is_stale(run):
+    """
+    True when the router no longer has the run in the state this message carries.
+
+    A message can wait in the queue while the processor is down; after a restart
+    it would act on an old status or round, for example skip a later round's
+    validation. The current state was queued again at startup, so dropping the
+    old one loses nothing. If the router cannot be asked, the message is kept.
+    """
+    try:
+        response = requests.get('{0}/runs/{1}/'.format(router_url, run['id']),
+                                auth=router_auth(), timeout=10)
+    except requests.RequestException:
+        return False
+    if not response.ok:
+        return False
+    return _progress(response.json()) != _progress(run)
 
 
 def fetch():

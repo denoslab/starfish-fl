@@ -5,6 +5,9 @@
 #   site-c (participant 2) - port 8003 - Redis DB 3 - store bb_store_c
 #   router                 - port 8000
 #
+# Sites use superuser Basic auth unless BB_TOKEN_A, BB_TOKEN_B and BB_TOKEN_C
+# hold site tokens from enrolment, SF-09; e2e/test_site_tokens.py does that.
+#
 # Controllers use CPU-only torch and no agent code: STARFISH_DISABLE_AGENTS
 # is set everywhere and no ANTHROPIC_API_KEY is passed. Each site mounts its
 # own synthetic sample store read-only at /babelbrain-store, and the
@@ -40,6 +43,7 @@ x-site-a-env: &site-a-env
   <<: *common-env
   SITE_UID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
   BABELBRAIN_FL_EVAL_STORE: /babelbrain-eval-store
+  ROUTER_TOKEN: ${BB_TOKEN_A:-}
   REDIS_DB: "1"
   CELERY_BROKER_URL: redis://redis:6379/1
   CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -47,6 +51,7 @@ x-site-a-env: &site-a-env
 x-site-b-env: &site-b-env
   <<: *common-env
   SITE_UID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  ROUTER_TOKEN: ${BB_TOKEN_B:-}
   REDIS_DB: "2"
   CELERY_BROKER_URL: redis://redis:6379/2
   CELERY_RESULT_BACKEND: redis://redis:6379/2
@@ -54,6 +59,7 @@ x-site-b-env: &site-b-env
 x-site-c-env: &site-c-env
   <<: *common-env
   SITE_UID: "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  ROUTER_TOKEN: ${BB_TOKEN_C:-}
   REDIS_DB: "3"
   CELERY_BROKER_URL: redis://redis:6379/3
   CELERY_RESULT_BACKEND: redis://redis:6379/3

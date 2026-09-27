@@ -20,6 +20,8 @@ import time
 
 import requests
 
+from starfish.controller.router_auth import router_auth
+
 CHUNK_BYTES = 1 << 20
 DEFAULT_RETRIES = 3
 TIMEOUT = (10, 300)
@@ -35,7 +37,7 @@ def _router():
     url = os.getenv('ROUTER_URL')
     if not url:
         raise TransferFailed('ROUTER_URL is not set')
-    return url.rstrip('/'), (os.getenv('ROUTER_USERNAME'), os.getenv('ROUTER_PASSWORD'))
+    return url.rstrip('/'), router_auth()
 
 
 def _retries():

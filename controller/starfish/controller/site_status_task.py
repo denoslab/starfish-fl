@@ -5,6 +5,7 @@ import os
 
 import requests
 from dotenv import load_dotenv
+from starfish.controller.router_auth import router_auth
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def send_status(status):
         data['status'] = status
         response = requests.post('{0}/sites/heartbeat/'.format(router_url),
                                  headers={'Content-Type': 'application/json'},
-                                 auth=(router_username, router_password),
+                                 auth=router_auth(),
                                  data=json.dumps(data))
         if not response or not response.ok:
             logger.debug(

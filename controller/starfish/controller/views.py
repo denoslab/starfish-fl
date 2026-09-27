@@ -16,6 +16,7 @@ from .file.file_utils import gen_logs_url, gen_dataset_url
 from .forms import SiteForm, ProjectJoinForm, ProjectNewForm, ProjectLeaveForm
 from .tasks_validator import TaskValidator
 from .templatetags.fl_tag import download_actions
+from starfish.controller.router_auth import router_auth
 
 # take environment variables from .env.
 load_dotenv()
@@ -40,7 +41,7 @@ def index(request):
             site_description = site_form.cleaned_data['description']
             # get current site info
             response = requests.get('{0}/sites/lookup/?uid={1}'.format(router_url, site_uid),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
             current_site = None
             if response.ok:
                 current_site = response.json()
@@ -50,14 +51,14 @@ def index(request):
                 if 'deregister_site' in request.POST:
                     # delete site with DELETE
                     requests.delete('{0}/sites/{1}/'.format(router_url, current_site['id']),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
                 else:
                     # update site with PUT
                     current_site['name'] = site_name
                     current_site['description'] = site_description
                     requests.put('{0}/sites/{1}/'.format(router_url, current_site['id']),
                                  headers={'Content-Type': 'application/json'},
-                                 auth=(router_username, router_password),
+                                 auth=router_auth(),
                                  data=json.dumps(current_site))
             else:
                 # site does not exist, create site with POST
@@ -68,14 +69,14 @@ def index(request):
                 # register new site
                 requests.post('{0}/sites/'.format(router_url),
                               headers={'Content-Type': 'application/json'},
-                              auth=(router_username, router_password),
+                              auth=router_auth(),
                               data=json.dumps(current_site))
         # redirect to the same page
         return HttpResponseRedirect("./")
     # if a GET, load the form
     else:
         response = requests.get('{0}/sites/lookup/?uid={1}'.format(router_url, site_uid),
-                                auth=(router_username, router_password))
+                                auth=router_auth())
         # if current site exists, store it for use
         current_site = None
         if response.ok:
@@ -92,7 +93,7 @@ def index(request):
             # get all projects this site is involved
             response_project_participants = requests \
                 .get('{0}/projects/lookup/?site_id={1}'.format(router_url, current_site['id']),
-                     auth=(router_username, router_password))
+                     auth=router_auth())
             project_participants = response_project_participants.json()
         else:
             # site does not exist, init blank form
@@ -127,7 +128,7 @@ def project_leave(request):
             pp_id = project_leave_form.cleaned_data['participant_id']
             # get current site info
             rr = requests.delete('{0}/project-participants/{1}/'.format(router_url, pp_id),
-                                 auth=(router_username, router_password))
+                                 auth=router_auth())
             print(rr)
     return redirect('index')
 
@@ -150,7 +151,7 @@ def project_new(request):
                      'msg': 'Tasks provided is not valid due to {}'.format(validator.get_error_msg())})
             # get current site info
             response = requests.get('{0}/sites/lookup/?uid={1}'.format(router_url, site_uid),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
             current_site = None
             if response.ok:
                 current_site = response.json()
@@ -168,7 +169,7 @@ def project_new(request):
                 project['tasks'] = task_list
                 requests.post('{0}/projects/'.format(router_url),
                               headers={'Content-Type': 'application/json'},
-                              auth=(router_username, router_password),
+                              auth=router_auth(),
                               data=json.dumps(project))
                 if response.ok:
                     return JsonResponse(
@@ -205,13 +206,13 @@ def project_join(request):
             project_name = project_join_form.cleaned_data['name']
             notes = project_join_form.cleaned_data['notes']
             response = requests.get('{0}/projects/lookup/?name={1}'.format(router_url, project_name),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
             project_to_join = None
             if response.ok:
                 project_to_join = response.json()
             # retrieve site info
             response = requests.get('{0}/sites/lookup/?uid={1}'.format(router_url, site_uid),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
             current_site = None
             if response.ok:
                 current_site = response.json()
@@ -224,7 +225,7 @@ def project_join(request):
                 project_participant['notes'] = notes
                 requests.post('{0}/project-participants/'.format(router_url),
                               headers={'Content-Type': 'application/json'},
-                              auth=(router_username, router_password),
+                              auth=router_auth(),
                               data=json.dumps(project_participant))
         # redirect to the home page
         return HttpResponseRedirect("/controller/")
@@ -244,7 +245,7 @@ def project_join(request):
 
 def project_detail(request, project_id, site_id):
     project_response = requests.get('{0}/projects/{1}/'.format(router_url, project_id),
-                                    auth=(router_username, router_password))
+                                    auth=router_auth())
     current_project = None
     all_participants = None
     all_runs = None
@@ -255,13 +256,13 @@ def project_detail(request, project_id, site_id):
             participants_response = requests.get(
                 '{0}/project-participants/lookup/?project={1}'.format(
                     router_url, project_id),
-                auth=(router_username, router_password))
+                auth=router_auth())
             if participants_response.ok:
                 all_participants = participants_response.json()
                 can_start_runs = True
 
     runs_response = requests.get('{0}/runs/lookup/?project={1}&site_uid={2}'.format(router_url, project_id, site_uid),
-                                 auth=(router_username, router_password))
+                                 auth=router_auth())
     if runs_response.ok:
         all_runs = runs_response.json()
     
@@ -300,7 +301,7 @@ def run_detail(request, batch, project_id, site_id):
     runs_response = requests.get(
         '{0}/runs/detail/?batch={1}&project={2}&site={3}'.format(
             router_url, batch, project_id, site_id),
-        auth=(router_username, router_password))
+        auth=router_auth())
     # if current site exists, store it for use
     dic = {}
     if runs_response.ok:
@@ -350,7 +351,7 @@ def upload_dataset(request):
     param['status'] = 3
     requests.put('{0}/runs/{1}/status/'.format(router_url, run_id),
                  headers={'Content-type': 'application/json'},
-                 auth=(router_username, router_password),
+                 auth=router_auth(),
                  data=json.dumps(param))
 
     return JsonResponse({
@@ -364,7 +365,7 @@ def start_runs(request, project_id, site_id):
         data['project'] = project_id
         response = requests.post('{0}/runs'.format(router_url),
                                  headers={'Content-Type': 'application/json'},
-                                 auth=(router_username, router_password),
+                                 auth=router_auth(),
                                  data=json.dumps(data))
         if not response.ok:
             return JsonResponse(
@@ -388,7 +389,7 @@ def perform_run_action(request, run_id, project_id, batch, role, action):
                                                                                  run_id,
                                                                                  1,
                                                                                  file_type),
-                auth=(router_username, router_password))
+                auth=router_auth())
         else:
             data = dict()
             data['run'] = run_id
@@ -399,7 +400,7 @@ def perform_run_action(request, run_id, project_id, batch, role, action):
             response = requests.put('{0}/runs-action/update/'.format(router_url),
                                     headers={
                                         'Content-Type': 'application/json'},
-                                    auth=(router_username, router_password),
+                                    auth=router_auth(),
                                     data=json.dumps(data))
         if not response.ok:
             return JsonResponse(

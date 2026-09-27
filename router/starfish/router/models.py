@@ -285,3 +285,37 @@ class ModelVersion(models.Model):
 
     def __str__(self):
         return self.version
+
+
+class EnrolmentCode(models.Model):
+    """
+    A single-use code that lets a new site enrol and get its token, SF-09.
+
+    Only the code's SHA-256 is stored. With a project, the site also joins it
+    as a participant.
+    """
+    code_hash = models.CharField(max_length=64, unique=True)
+    project = models.ForeignKey(
+        Project, null=True, blank=True, on_delete=models.CASCADE)
+    note = models.CharField(max_length=200, blank=True, default='')
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    used_by = models.ForeignKey(Site, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return 'code {} for {}'.format(self.pk, self.project or 'any project')
+
+
+class SiteToken(models.Model):
+    """A site's API token, SF-09. Only its SHA-256 is stored; revoked tokens are refused."""
+    site = models.ForeignKey(
+        Site, on_delete=models.CASCADE, related_name='tokens')
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return 'token {} of {}'.format(self.pk, self.site)

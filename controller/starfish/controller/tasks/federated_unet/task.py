@@ -31,6 +31,7 @@ from starfish.controller.file.file_utils import (
     read_file_from_url,
 )
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.router_auth import router_auth
 
 router_url = os.getenv('ROUTER_URL')
 router_username = os.getenv('ROUTER_USERNAME')
@@ -359,7 +360,7 @@ class FederatedUNet(AbstractTask):
         try:
             response = requests.post(
                 '{}/runs-action/upload/'.format(router_url),
-                auth=(router_username, router_password),
+                auth=router_auth(),
                 data=data,
                 files=files_data,
             )

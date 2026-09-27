@@ -187,3 +187,32 @@ class TransferTest(TestCase):
         with patch.dict(os.environ, {'ROUTER_URL': ''}):
             with self.assertRaisesRegex(TransferFailed, 'ROUTER_URL'):
                 transfer.list_files(7, 'logs')
+
+
+class RouterAuthTest(TestCase):
+    """SF-09: a site token replaces Basic auth when ROUTER_TOKEN is set."""
+
+    def setUp(self):
+        self.router = FakeRouter()
+        self.addCleanup(self.router.close)
+        self.seen = []
+        original = self.router.server.RequestHandlerClass.do_GET
+        seen = self.seen
+
+        def spy(handler):
+            seen.append(handler.headers.get('Authorization'))
+            return original(handler)
+
+        self.router.server.RequestHandlerClass.do_GET = spy
+
+    def test_token_header_when_router_token_is_set(self):
+        with patch.dict(os.environ, {'ROUTER_URL': self.router.url, 'ROUTER_TOKEN': 'abc',
+                                     'ROUTER_USERNAME': 'u', 'ROUTER_PASSWORD': 'p'}):
+            transfer.list_files(7, 'logs')
+        self.assertEqual(self.seen, ['Token abc'])
+
+    def test_basic_auth_without_a_token(self):
+        with patch.dict(os.environ, {'ROUTER_URL': self.router.url, 'ROUTER_TOKEN': '',
+                                     'ROUTER_USERNAME': 'u', 'ROUTER_PASSWORD': 'p'}):
+            transfer.list_files(7, 'logs')
+        self.assertTrue(self.seen[0].startswith('Basic '))

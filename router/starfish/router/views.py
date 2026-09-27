@@ -12,11 +12,15 @@ from rest_framework import permissions
 from rest_framework import status
 from rest_framework import viewsets, mixins, generics
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
-from starfish.router.models import Site, Project, ProjectParticipant, Run, StoredFile, ModelVersion
+from starfish.router.auth import check_run_access, check_site_uid, hash_secret, new_secret, \
+    request_site
+from starfish.router.models import Site, Project, ProjectParticipant, Run, StoredFile, ModelVersion, \
+    EnrolmentCode, SiteToken
 from starfish.router.serializers import SiteSerializer, \
     ProjectSerializer, ProjectParticipantSerializer, \
     ProjectParticipantCreateSerializer, RunSerializer, \
@@ -94,6 +98,45 @@ class SiteViewSet(viewsets.ModelViewSet):
         serializer = SiteSerializer(queryset)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['POST'], url_path='enrol',
+            permission_classes=[permissions.AllowAny], authentication_classes=[])
+    def enrol(self, request):
+        """
+        Enrol a site with a single-use code and return its token once, SF-09.
+
+        Body: code, uid, name, description. The token is not stored and
+        cannot be shown again.
+        """
+        code = request.data.get('code')
+        uid = request.data.get('uid')
+        name = request.data.get('name')
+        if not code or not validate_uuid4(uid) or not name:
+            return Response("code, a uuid4 uid and name are required",
+                            status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            record = EnrolmentCode.objects.select_for_update().filter(
+                code_hash=hash_secret(str(code))).first()
+            if record is None or record.used_at is not None or record.expires_at <= timezone.now():
+                return Response("Invalid, used or expired enrolment code",
+                                status=status.HTTP_403_FORBIDDEN)
+            site = Site.objects.filter(uid=uid).first()
+            if site is None:
+                owner = User.objects.filter(
+                    is_superuser=True).order_by('id').first()
+                site = Site.objects.create(uid=uid, name=name, owner=owner,
+                                           description=request.data.get('description') or '')
+            token = new_secret()
+            SiteToken.objects.create(site=site, token_hash=hash_secret(token))
+            record.used_at = timezone.now()
+            record.used_by = site
+            record.save()
+            if record.project_id:
+                ProjectParticipant.objects.get_or_create(
+                    site=site, project_id=record.project_id,
+                    defaults={'role': ProjectParticipant.Role.PARTICIPANT, 'notes': 'enrolled'})
+        return Response({'site': site.id, 'uid': str(site.uid), 'token': token,
+                         'project': record.project_id}, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['POST'], url_path='heartbeat')
     def heartbeat(self, request):
         """
@@ -105,6 +148,7 @@ class SiteViewSet(viewsets.ModelViewSet):
 
         if not validate_uuid4(uid_param):
             return Response("Invalid uid", status=status.HTTP_400_BAD_REQUEST)
+        check_site_uid(request, uid_param)
 
         if not status_param in Site.SiteStatus:
             return Response("Status not supported", status=status.HTTP_400_BAD_REQUEST)
@@ -129,6 +173,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
+        site = request_site(request)
+        if site is not None and str(request.data.get('site')) != str(site.id):
+            raise PermissionDenied(
+                'a site can create or join projects only as itself')
         serializer = self.serializer_class(data=request.data, partial=True)
 
         if serializer.is_valid():
@@ -178,6 +226,9 @@ class ProjectParticipantViewSet(viewsets.ModelViewSet):
         return super(ProjectParticipantViewSet, self).get_serializer_class()
 
     def perform_create(self, serializer):
+        site = request_site(self.request)
+        if site is not None and str(self.request.data.get('site')) != str(site.id):
+            raise PermissionDenied('a site can join projects only as itself')
         serializer.save()
 
     @action(detail=False, methods=['GET'], url_path='lookup')
@@ -222,9 +273,18 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    def get_queryset(self):
+        """A token site sees only its own runs through the standard routes, SF-09."""
+        queryset = super().get_queryset()
+        site = request_site(self.request)
+        if site is not None:
+            queryset = queryset.filter(site_uid=site.uid)
+        return queryset
+
     @action(detail=True, methods=['PUT'], url_path='status')
     def update_status(self, request, pk=None):
         run = self.get_object()
+        check_run_access(request, run)
         state = request.data.get('status', None)
         increase_round = request.data.get('increase_round', False)
         update_all = request.data.get('update_all', False)
@@ -330,6 +390,8 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
     def get_active_runs(self, request):
         queryset = Run.objects.exclude(
             status__in=[Run.RunStatus.FAILED, Run.RunStatus.SUCCESS])
+        if request_site(request) is not None:
+            queryset = queryset.filter(site_uid=request_site(request).uid)
         serializer = RunSerializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -342,6 +404,11 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
         project_id = request.GET.get('project', None)
         site = request.GET.get('site', None)
         site_uid = request.GET.get('site_uid', None)
+        token_site = request_site(request)
+        if token_site is not None:
+            if site_uid is None and str(site) != str(token_site.id):
+                raise PermissionDenied('a site can look up only its own runs')
+            check_site_uid(request, site_uid or token_site.uid)
 
         if site_uid:
             site_id = Site.objects.get(uid=site_uid)
@@ -371,6 +438,10 @@ class BulkCreateRunAPIView(generics.ListCreateAPIView):
 
     def post(self, request):
         project_id = request.data.get('project', None)
+        site = request_site(request)
+        if site is not None and not Project.objects.filter(id=project_id, site_id=site.id).exists():
+            raise PermissionDenied(
+                'only the project coordinator can start runs')
         queryset = Run.objects.filter(project_id=project_id)
         serializer = RunSerializer(queryset, many=True)
         should_create_new_runs = display_util.should_create_new_runs(
@@ -443,6 +514,7 @@ class RunsActionViewSet(ViewSet):
         run = Run.objects.filter(id=run_id).first()
         if run is None:
             raise TransferError('run not found', status=404)
+        check_run_access(request, run)
         runs = [run]
         if request.GET.get('all_runs', '0') == '1' and run.role == ProjectParticipant.Role.COORDINATOR:
             runs = list(self._batch_runs(run))
@@ -505,6 +577,7 @@ class RunsActionViewSet(ViewSet):
             run = Run.objects.filter(id=params.get('run')).first()
             if run is None:
                 raise TransferError('run not found', status=404)
+            check_run_access(request, run)
             file_util.check_free_disk(
                 size, settings.STARFISH_ARTIFACT_DISK_RESERVE_BYTES, shutil.disk_usage)
             if file_type == 'artifacts':
@@ -543,6 +616,7 @@ class RunsActionViewSet(ViewSet):
             return Response("Must at least upload one file", status=status.HTTP_400_BAD_REQUEST)
 
         run = Run.objects.get(id=run_id)
+        check_run_access(request, run)
         if run:
             url = generate_url(run_id, task_seq, round_seq)
             if url:
@@ -593,6 +667,7 @@ class RunsActionViewSet(ViewSet):
         if not run_id or not file_type:
             return Response("Run id or file type not provided", status=status.HTTP_400_BAD_REQUEST)
         run = Run.objects.get(id=run_id)
+        check_run_access(request, run)
 
         if run:
             runs = []
@@ -625,6 +700,14 @@ class RunsActionViewSet(ViewSet):
 
         if not run_id or not action_role or not request_action or not project_id or not batch:
             return Response("Run info absent", status=status.HTTP_400_BAD_REQUEST)
+        requester = Run.objects.filter(id=run_id).first()
+        if requester is None:
+            return Response("Run not found", status=status.HTTP_404_NOT_FOUND)
+        check_run_access(request, requester)
+        if request_site(request) is not None and (
+                str(requester.project_id) != str(project_id) or str(requester.batch) != str(batch)):
+            raise PermissionDenied(
+                'the run does not belong to that project and batch')
 
         target_status = display_util.get_status_from_action(request_action)
         if not target_status:
@@ -730,6 +813,7 @@ class ModelRegistryViewSet(ViewSet):
             run = Run.objects.filter(id=data.get('run')).first()
             if run is None:
                 raise TransferError('run not found', status=404)
+            check_run_access(request, run)
             if run.role != ProjectParticipant.Role.COORDINATOR:
                 raise TransferError(
                     'only the coordinator can publish a model', status=403)
@@ -780,3 +864,56 @@ class ModelRegistryViewSet(ViewSet):
                 batch=run.batch, task_seq=task_seq, round_seq=round_seq,
                 source_version=source_version, eval_report=report if isinstance(report, dict) else {})
         return Response(self._describe(mv), status=status.HTTP_201_CREATED)
+
+
+class EnrolmentCodeViewSet(ViewSet):
+    """
+    Admin only, SF-09. ``POST enrolment-codes/`` with optional project, note and
+    ``valid_hours``, default 72, returns a single-use code once. ``GET`` lists
+    codes without the codes themselves.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def list(self, request):
+        return Response([{'id': c.id, 'project': c.project_id, 'note': c.note,
+                          'expires_at': c.expires_at, 'used_at': c.used_at,
+                          'used_by': c.used_by_id} for c in EnrolmentCode.objects.order_by('-id')])
+
+    def create(self, request):
+        try:
+            hours = float(request.data.get('valid_hours', 72))
+        except (TypeError, ValueError):
+            return Response('valid_hours must be a number', status=status.HTTP_400_BAD_REQUEST)
+        project = None
+        if request.data.get('project'):
+            project = Project.objects.filter(
+                id=request.data.get('project')).first()
+            if project is None:
+                return Response('project not found', status=status.HTTP_404_NOT_FOUND)
+        code = new_secret()
+        record = EnrolmentCode.objects.create(
+            code_hash=hash_secret(code), project=project, note=str(request.data.get('note') or '')[:200],
+            expires_at=timezone.now() + timezone.timedelta(hours=hours))
+        return Response({'id': record.id, 'code': code, 'project': record.project_id,
+                         'expires_at': record.expires_at}, status=status.HTTP_201_CREATED)
+
+
+class SiteTokenViewSet(ViewSet):
+    """Admin only, SF-09. ``GET site-tokens/`` lists tokens; ``POST site-tokens/<id>/revoke/``."""
+    permission_classes = [permissions.IsAdminUser]
+
+    def list(self, request):
+        return Response([{'id': t.id, 'site': t.site_id, 'site_uid': str(t.site.uid),
+                          'created_at': t.created_at, 'last_used_at': t.last_used_at,
+                          'revoked_at': t.revoked_at}
+                         for t in SiteToken.objects.select_related('site').order_by('-id')])
+
+    @action(detail=True, methods=['POST'], url_path='revoke')
+    def revoke(self, request, pk=None):
+        token = SiteToken.objects.filter(pk=pk).first()
+        if token is None:
+            return Response('token not found', status=status.HTTP_404_NOT_FOUND)
+        if token.revoked_at is None:
+            token.revoked_at = timezone.now()
+            token.save()
+        return Response({'id': token.id, 'revoked_at': token.revoked_at})

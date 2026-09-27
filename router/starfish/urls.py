@@ -30,6 +30,10 @@ router_v1.register(r'runs',
                    views.RunViewSet, basename="run")
 router_v1.register(r'registry', views.ModelRegistryViewSet,
                    basename="registry")
+router_v1.register(r'enrolment-codes', views.EnrolmentCodeViewSet,
+                   basename="enrolment-code")
+router_v1.register(r'site-tokens', views.SiteTokenViewSet,
+                   basename="site-token")
 router_v1.register(r'runs-action', views.RunsActionViewSet,
                    basename="runs-action")
 

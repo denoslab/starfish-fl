@@ -55,8 +55,38 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
+    'PAGE_SIZE': 20,
+    # Site tokens first, SF-09; superuser Basic and session auth keep working
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'starfish.router.auth.SiteTokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
 }
+
+
+def tls_settings(require_tls):
+    """Settings that make the router refuse plain HTTP, SF-09.
+
+    Behind a TLS-terminating proxy, the proxy must set X-Forwarded-Proto.
+    """
+    if not require_tls:
+        return {}
+    return {
+        'SECURE_SSL_REDIRECT': True,
+        'SECURE_PROXY_SSL_HEADER': ('HTTP_X_FORWARDED_PROTO', 'https'),
+        'SESSION_COOKIE_SECURE': True,
+        'CSRF_COOKIE_SECURE': True,
+        'SECURE_HSTS_SECONDS': 31536000,
+        'SECURE_HSTS_INCLUDE_SUBDOMAINS': True,
+    }
+
+
+# Production requires TLS: on unless DEBUG, or set STARFISH_REQUIRE_TLS explicitly
+_require_tls = os.getenv('STARFISH_REQUIRE_TLS')
+REQUIRE_TLS = (_require_tls.strip().lower() in (
+    '1', 'true', 'yes')) if _require_tls else not DEBUG
+globals().update(tls_settings(REQUIRE_TLS))
 
 
 MIDDLEWARE = [

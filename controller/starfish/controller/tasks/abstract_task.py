@@ -15,6 +15,7 @@ from starfish.controller.file.file_utils import read_file_from_url, gen_logs_url
 from starfish.controller.tasks.data_source import get_data_source, validate_data_source
 # take environment variables from .env.
 from starfish.controller.utils import format_status
+from starfish.controller.router_auth import router_auth
 
 load_dotenv()
 
@@ -355,7 +356,7 @@ class AbstractTask(ABC):
                     self.cur_seq,
                     task_round,
                     1),
-                auth=(router_username, router_password))
+                auth=router_auth())
 
             if response.status_code == 404:
                 self.logger.warning('No mid-artifacts found in router for project {} at batch {}'.format(
@@ -392,7 +393,7 @@ class AbstractTask(ABC):
                     seq_no,
                     round_no,
                     0),
-                auth=(router_username, router_password))
+                auth=router_auth())
 
             if response.status_code == 404:
                 self.logger.warning('No artifacts found in router for run {} at batch {}'.format(
@@ -451,8 +452,7 @@ class AbstractTask(ABC):
             if any(files_data.values()):
 
                 response = requests.post('{0}/runs-action/upload/'.format(router_url, self.run_id),
-                                         auth=(router_username,
-                                               router_password),
+                                         auth=router_auth(),
                                          data=data,
                                          files=files_data)
                 if response.status_code == 200:
@@ -474,14 +474,14 @@ class AbstractTask(ABC):
         param['status'] = next_state
         requests.put('{0}/runs/{1}/status/'.format(router_url, self.run_id),
                      headers=headers,
-                     auth=(router_username, router_password),
+                     auth=router_auth(),
                      data=json.dumps(param))
 
     def fetch_runs(self):
         runs_response = requests.get(
             '{0}/runs/detail/?batch={1}&project={2}&site_uid={3}'.format(
                 router_url, self.batch_id, self.project_id, site_uid),
-            auth=(router_username, router_password))
+            auth=router_auth())
         if runs_response.ok:
             dic = runs_response.json()
             runs = dic['runs']

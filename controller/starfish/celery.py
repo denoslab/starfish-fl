@@ -7,6 +7,7 @@ from kombu import Exchange, Queue
 from starfish.controller import redis
 from starfish.controller.site_status_task import report_alive
 from starfish.controller.utils import load_class, camel_to_snake, format_status, epoch_time_in_sec
+from starfish.controller.router_auth import router_auth
 
 logger = get_task_logger(__name__)
 
@@ -136,7 +137,7 @@ def fetch():
     data = dict()
     response = requests.get('{0}/runs/active/'.format(router_url),
                             headers=headers,
-                            auth=(router_username, router_password),
+                            auth=router_auth(),
                             data=json.dumps(data))
     if response.ok:
         return response.json()

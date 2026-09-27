@@ -1,4 +1,4 @@
-.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-partial babelbrain-down babelbrain-clean babelbrain-logs
+.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-partial babelbrain-tokens babelbrain-down babelbrain-clean babelbrain-logs
 
 COMPOSE = docker-compose
 # Paths updated for mono repo structure
@@ -54,6 +54,10 @@ babelbrain-transfer:
 # SF-10: site c misses round 1 and rejoins round 2, quorum 2; about 5 minutes
 babelbrain-partial:
 	cd ../e2e && python3 -m pytest test_partial_participation.py -v -s --timeout=1800
+
+# SF-09: enrol every site, restart the controllers on their tokens, run 2 rounds
+babelbrain-tokens:
+	cd ../e2e && python3 -m pytest test_site_tokens.py -v -s --timeout=1800
 
 babelbrain-logs:
 	$(BB_COMPOSE) logs --tail=100

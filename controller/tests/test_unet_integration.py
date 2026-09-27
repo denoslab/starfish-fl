@@ -9,7 +9,6 @@ a minute even on CPU.
 
 import io
 import os
-import pickle
 import shutil
 import tempfile
 import zipfile
@@ -21,7 +20,19 @@ import pytest
 tf = pytest.importorskip('tensorflow')
 
 from starfish.controller.tasks.federated_unet.task import FederatedUNet
+from starfish.controller.file.artifact_io import (
+    load_artifact, save_artifact, tensors_to_weights)
 from starfish.controller.file.file_utils import load_image_dataset_by_run
+
+
+def read_mid_artifact(path):
+    """Read a mid-artifact into the weights, n_samples, metrics layout."""
+    tensors, meta = load_artifact(path)
+    return {
+        'weights': tensors_to_weights(tensors),
+        'n_samples': meta['n_samples'],
+        'metrics': meta['metrics'],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -138,8 +149,7 @@ class TestTraining:
             str(tmp_base_folder), '42', '1', '1', 'mid-artifacts')
         assert os.path.exists(mid_path)
 
-        with open(mid_path, 'rb') as f:
-            result = pickle.load(f)
+        result = read_mid_artifact(mid_path)
 
         assert 'weights' in result
         assert 'n_samples' in result
@@ -155,8 +165,7 @@ class TestTraining:
 
         mid_path = os.path.join(
             str(tmp_base_folder), '42', '1', '1', 'mid-artifacts')
-        with open(mid_path, 'rb') as f:
-            result = pickle.load(f)
+        result = read_mid_artifact(mid_path)
 
         metrics = result['metrics']
         assert 0 <= metrics['iou_score'] <= 1
@@ -177,8 +186,8 @@ class TestEndToEnd:
         # Simulate a second site's mid-artifact
         mid_path = os.path.join(
             str(tmp_base_folder), '42', '1', '1', 'mid-artifacts')
-        with open(mid_path, 'rb') as f:
-            site1_result = pickle.load(f)
+        site1_tensors, site1_meta = load_artifact(mid_path)
+        site1_result = read_mid_artifact(mid_path)
 
         # Write both as mid-artifacts for aggregation
         agg_dir = os.path.join(
@@ -186,8 +195,8 @@ class TestEndToEnd:
         os.makedirs(agg_dir, exist_ok=True)
 
         for site_name in ['siteA', 'siteB']:
-            with open(os.path.join(agg_dir, f'{site_name}-1-1-mid-artifacts'), 'wb') as f:
-                pickle.dump(site1_result, f)
+            save_artifact(os.path.join(agg_dir, f'{site_name}-1-1-mid-artifacts'),
+                          site1_tensors, site1_meta)
 
         # Aggregate (mock upload since there's no router)
         from unittest.mock import patch as mock_patch
@@ -199,8 +208,10 @@ class TestEndToEnd:
             str(tmp_base_folder), '42', '1', '1', 'artifacts')
         assert os.path.exists(artifact_path)
 
-        with open(artifact_path, 'rb') as f:
-            agg_weights = pickle.load(f)
+        agg_tensors, agg_meta = load_artifact(artifact_path)
+        agg_weights = tensors_to_weights(agg_tensors)
+        assert agg_meta['kind'] == 'global'
+        assert agg_meta['n_samples'] == 2 * N_IMAGES
 
         # Aggregated weights should be a list of numpy arrays
         assert isinstance(agg_weights, list)

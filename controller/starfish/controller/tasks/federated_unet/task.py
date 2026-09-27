@@ -8,14 +8,19 @@ Requires the ``unet`` dependency group (TensorFlow, segmentation-models).
 """
 
 import os
-import pickle
 from pathlib import Path
 
 import numpy as np
 import requests
 
+from starfish.controller.file.artifact_io import (
+    ArtifactError,
+    load_artifact,
+    save_artifact,
+    tensors_to_weights,
+    weights_to_tensors,
+)
 from starfish.controller.file.file_utils import (
-    create_if_not_exist,
     downloaded_artifacts_url,
     gen_all_mid_artifacts_url,
     gen_binary_artifacts_url,
@@ -183,9 +188,8 @@ class FederatedUNet(AbstractTask):
                 if prev_artifact is None:
                     self.logger.error('Previous artifact not found')
                     return False
-                with open(prev_artifact, 'rb') as f:
-                    weights = pickle.load(f)
-                self.model.set_weights(weights)
+                tensors, _ = load_artifact(str(prev_artifact))
+                self.model.set_weights(tensors_to_weights(tensors))
 
             self.logger.info('Prepared {} samples for local training'.format(self.sample_size))
             return True
@@ -198,8 +202,8 @@ class FederatedUNet(AbstractTask):
         Run local training and save mid-artifacts.
 
         Trains the UNet on this site's images for ``local_epochs`` epochs,
-        then serializes the model weights, sample count, and training metrics
-        (loss, IoU, F1) as a pickle mid-artifact for aggregation.
+        then saves the model weights, sample count, and training metrics
+        (loss, IoU, F1) as a safetensors mid-artifact for aggregation.
         """
         try:
             config = self._config()
@@ -226,13 +230,13 @@ class FederatedUNet(AbstractTask):
             }
 
             # Package weights + metadata for the coordinator to aggregate
-            payload = {
-                'weights': self.model.get_weights(),
+            url = gen_binary_mid_artifacts_url(
+                self.run_id, self.cur_seq, self.get_round())
+            return self.save_artifacts(url, self.model.get_weights(), {
+                'kind': 'mid',
                 'n_samples': self.sample_size,
                 'metrics': metrics,
-            }
-            url = gen_binary_mid_artifacts_url(self.run_id, self.cur_seq, self.get_round())
-            return self.save_artifacts(url, payload)
+            })
         except Exception as e:
             self.logger.error('training failed due to {}'.format(e))
             return False
@@ -254,11 +258,29 @@ class FederatedUNet(AbstractTask):
             pattern = '*-{}-{}-mid-artifacts'.format(self.cur_seq, self.get_round())
             participant_results = []
             for path in sorted(Path(directory).rglob(pattern)):
-                with open(path, 'rb') as f:
-                    participant_results.append(pickle.load(f))
+                try:
+                    tensors, meta = load_artifact(str(path))
+                    participant_results.append({
+                        'weights': tensors_to_weights(tensors),
+                        'n_samples': meta.get('n_samples', 0),
+                        'metrics': meta.get('metrics', {}),
+                    })
+                except ArtifactError as e:
+                    # Never fall back to unsafe formats; fail the round instead.
+                    self.logger.error(
+                        'Rejected mid-artifact {}: {}'.format(path.name, e))
+                    return False
 
             if not participant_results:
                 self.logger.warning('No participant mid-artifacts found for aggregation')
+                return False
+
+            # Mismatched weights would otherwise broadcast silently in the sum
+            shapes = [[w.shape for w in item['weights']]
+                      for item in participant_results]
+            if any(s != shapes[0] for s in shapes[1:]):
+                self.logger.error(
+                    'Participant weights have different shapes; round rejected')
                 return False
 
             total_samples = sum(int(item.get('n_samples', 0)) for item in participant_results)
@@ -283,7 +305,8 @@ class FederatedUNet(AbstractTask):
                 return False
 
             artifact_url = gen_binary_artifacts_url(self.run_id, self.cur_seq, self.get_round())
-            if not self.save_artifacts(artifact_url, agg_weights):
+            if not self.save_artifacts(artifact_url, agg_weights, {
+                    'kind': 'global', 'n_samples': total_samples, 'metrics': {}}):
                 return False
 
             return self.upload(True)
@@ -349,29 +372,45 @@ class FederatedUNet(AbstractTask):
                 except Exception:
                     pass
 
-    def save_artifacts(self, url, content):
+    def model_version(self, task_round):
+        """Name of the model a round produces: project, batch, task and round."""
+        return 'p{}-b{}-t{}-r{}'.format(
+            self.project_id, self.batch_id, self.cur_seq, task_round)
+
+    def save_artifacts(self, url, weights, meta=None):
         """
-        Serialize and save artifact content as a pickle file.
+        Save a list of weight arrays as a safetensors artifact.
 
         Parameters
         ----------
         url : str
             Local filesystem path for the artifact.
-        content : object
-            Python object to pickle (model weights or payload dict).
+        weights : list of numpy.ndarray
+            Model weights in ``get_weights()`` order.
+        meta : dict, optional
+            JSON-serialisable metadata such as ``n_samples`` and ``metrics``.
+            ``task``, ``round``, ``model_version`` and ``metrics`` are filled
+            in when absent; ``n_samples`` is required.
 
         Returns
         -------
         bool
             True if saved successfully.
         """
-        if content is None:
+        if weights is None:
             return False
-        create_if_not_exist(url)
         try:
-            with open(url, 'wb') as f:
-                pickle.dump(content, f, protocol=pickle.HIGHEST_PROTOCOL)
+            meta = dict(meta or {})
+            task_round = int(self.get_round())
+            meta.setdefault('task', 'FederatedUNet')
+            meta.setdefault('round', task_round)
+            meta.setdefault('model_version', self.model_version(task_round))
+            meta.setdefault('metrics', {})
+            sha = save_artifact(url, weights_to_tensors(weights), meta)
+            self.logger.debug('Saved artifact {} sha256={}'.format(
+                os.path.basename(url), sha))
             return True
-        except Exception as e:
-            self.logger.error('Error while saving binary artifact due to {}'.format(e))
+        except (ArtifactError, TypeError, ValueError) as e:
+            self.logger.error(
+                'Error while saving artifact due to {}'.format(e))
             return False

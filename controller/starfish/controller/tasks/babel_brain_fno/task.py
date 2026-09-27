@@ -23,6 +23,7 @@ import tempfile
 from starfish.controller.file import file_utils, transfer
 from starfish.controller.file.artifact_io import ArtifactError, load_artifact, save_artifact
 from starfish.controller.tasks.abstract_task import AbstractTask
+from starfish.controller.tasks.babel_brain_fno import codec
 from starfish.controller.tasks.babel_brain_fno import weights as W
 from starfish.controller.tasks.babel_brain_fno.store import SampleStore, StoreError
 from starfish.controller.tasks.data_source import BABELBRAIN_STORE, validate_data_source
@@ -71,6 +72,12 @@ class BabelBrainFno(AbstractTask):
         replace the paper's epochs.
     min_samples : int, default 20
         Refuse to train with fewer local train samples than this.
+    compression : dict, default {"method": "none"}
+        How deltas travel, SF-07: ``none``, ``fp16``, ``int8`` or ``topk``
+        with share ``k``. See ``codec.py``.
+    trainable : list of str, optional
+        Parameter name prefixes to fine-tune; all others stay frozen and
+        are not sent. Depends on T9.
     """
 
     agents_allowed = False
@@ -112,6 +119,11 @@ class BabelBrainFno(AbstractTask):
 
     def _global_out_path(self):
         return file_utils.gen_binary_artifacts_url(self.run_id, self.cur_seq, self._round())
+
+    def _residual_path(self):
+        """topk error feedback, local to this site and kept across the rounds of a batch."""
+        return os.path.join(file_utils.base_folder, 'babelbrain_fl', 'residual-p{}-b{}-t{}'.format(
+            self.project_id, self.batch_id, self.cur_seq))
 
     def _mids_dir(self):
         return os.path.join(file_utils.gen_all_mid_artifacts_url(self.project_id, self.batch_id),
@@ -275,6 +287,9 @@ class BabelBrainFno(AbstractTask):
     def training(self) -> bool:
         try:
             return self._train()
+        except (TaskError, codec.CodecError) as e:
+            self.logger.error('Training refused: {}'.format(e))
+            return False
         except Exception as e:
             self.logger.error('Training failed: {}: {}'.format(
                 e.__class__.__name__, e))
@@ -298,6 +313,8 @@ class BabelBrainFno(AbstractTask):
                                 grad_checkpointing=bool(config.get('grad_checkpointing', False)))
         model.load_state_dict(W.arrays_to_state(
             base, base_meta.get('complex_keys', [])))
+        trainable = self._apply_trainable(model)
+        compression = codec.config(config.get('compression'))
         model.to(device)
         batch_size = int(config.get('batch_size', 1))
         train_loader = DataLoader(torch_dataset(self.train_records), batch_size=batch_size,
@@ -313,11 +330,19 @@ class BabelBrainFno(AbstractTask):
 
         local, complex_keys = W.state_to_arrays(model.state_dict())
         update = W.delta(local, base)
-        save_artifact(self._mid_path(), update, self._meta(
+        if trainable is not None:
+            update = {name: v for name,
+                      v in update.items() if name in trainable}
+        encoded, codec_meta = self._encode(update, compression)
+        metrics['raw_bytes'] = int(sum(v.nbytes for v in update.values()))
+        metrics['delta_bytes'] = codec.nbytes(encoded)
+        save_artifact(self._mid_path(), encoded, self._meta(
             'delta', '{}+run{}'.format(
                 base_meta['model_version'], self.run_id),
             len(self.train_records), metrics, complex_keys,
-            base_version=base_meta['model_version'], base_digest=W.digest(base)))
+            base_version=base_meta['model_version'], base_digest=W.digest(
+                base),
+            codec=codec_meta, trainable=sorted(trainable) if trainable is not None else None))
         self.logger.info(
             'Round {}: {} train samples, loss {:.5f}, val rel l2 {}, {} s per epoch, '
             'peak memory {:.0f} MB on {}'.format(
@@ -326,6 +351,40 @@ class BabelBrainFno(AbstractTask):
                                 ) if 'val_rel_l2' in metrics else 'n/a',
                 metrics['epoch_seconds'], metrics['peak_memory_mb'], metrics['device']))
         return True
+
+    def _apply_trainable(self, model):
+        """Freeze every parameter outside the ``trainable`` prefixes; return the names kept."""
+        prefixes = self._config().get('trainable')
+        if not prefixes:
+            return None
+        if isinstance(prefixes, str) or not all(isinstance(p, str) and p for p in prefixes):
+            raise TaskError(
+                'trainable must be a list of parameter name prefixes')
+        kept = set()
+        for name, param in model.named_parameters():
+            keep = any(name.startswith(prefix) for prefix in prefixes)
+            param.requires_grad_(keep)
+            if keep:
+                kept.add(name)
+        if not kept:
+            raise TaskError('trainable matches no parameter of the model')
+        self.logger.info('Fine-tuning {} of {} parameter tensors'.format(
+            len(kept), len(list(model.parameters()))))
+        return kept
+
+    def _encode(self, update, compression):
+        residual = None
+        if compression['method'] == 'topk' and os.path.exists(self._residual_path()):
+            try:
+                residual, _ = load_artifact(self._residual_path())
+            except ArtifactError:
+                residual = None
+        encoded, codec_meta, new_residual = codec.encode(
+            update, compression, residual)
+        if new_residual is not None:
+            save_artifact(self._residual_path(), new_residual, self._meta(
+                'residual', 'residual', 0, {}, []))
+        return encoded, codec_meta
 
     # ── transfer ────────────────────────────────────────────────────────────
 
@@ -450,7 +509,7 @@ class BabelBrainFno(AbstractTask):
     def do_aggregate(self) -> bool:
         try:
             return self._aggregate()
-        except (TaskError, ArtifactError, W.WeightsError) as e:
+        except (TaskError, ArtifactError, W.WeightsError, codec.CodecError) as e:
             self.logger.error('Aggregation failed: {}'.format(e))
             return False
 
@@ -477,12 +536,17 @@ class BabelBrainFno(AbstractTask):
             if meta.get('base_digest') != base_digest:
                 raise TaskError(
                     'a delta was trained from a different global model')
-            updates.append((tensors, meta['n_samples']))
+            try:
+                update = codec.decode(tensors, meta.get('codec'), base)
+            except codec.CodecError as e:
+                raise TaskError('a delta could not be decoded: {}'.format(e))
+            updates.append((update, meta['n_samples']))
             sites.append(meta)
         candidate = W.fedavg(base, updates)
 
-        metrics = {'sites': len(sites), 'train_samples': sum(
-            m['n_samples'] for m in sites)}
+        metrics = {'sites': len(sites),
+                   'train_samples': sum(m['n_samples'] for m in sites),
+                   'delta_bytes': sum(m['metrics'].get('delta_bytes', 0) for m in sites)}
         val = [(m['metrics'].get('val_rel_l2'), m['metrics'].get('val_ssim'),
                 m['metrics'].get('val_samples', 0)) for m in sites]
         val = [v for v in val if v[0] is not None and v[2]]

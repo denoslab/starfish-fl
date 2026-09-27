@@ -100,7 +100,8 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
     accum = max(1, int(cfg.get('grad_accum', 1)))
     clip = cfg.get('clip_norm')
     use_amp = bool(cfg.get('amp', True)) and device.type == 'cuda'
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg.get('lr', 1e-3)),
+    params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(params, lr=float(cfg.get('lr', 1e-3)),
                                   weight_decay=float(cfg.get('weight_decay', 0.0)))
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp) if use_amp else None
     if device.type == 'cuda':
@@ -127,8 +128,7 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
                 if scaler:
                     scaler.unscale_(optimizer)
                 if clip:
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), float(clip))
+                    torch.nn.utils.clip_grad_norm_(params, float(clip))
                 if scaler:
                     scaler.step(optimizer)
                     scaler.update()

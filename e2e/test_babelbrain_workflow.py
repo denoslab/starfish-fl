@@ -20,6 +20,7 @@ Uses the stand-in model on CPU, SF-04.
 """
 import io
 import json
+import os
 import time
 import zipfile
 
@@ -44,6 +45,10 @@ TASKS = [{
     },
 }]
 TOTAL_ROUNDS = 3
+# Optional SF-07 codec for the run, for example BABELBRAIN_E2E_COMPRESSION=topk
+COMPRESSION = os.getenv("BABELBRAIN_E2E_COMPRESSION")
+if COMPRESSION:
+    TASKS[0]["config"]["compression"] = {"method": COMPRESSION, "k": 0.05}
 EXPECTED_FINAL_STATUS = "Success"
 STORE_LINE = "Sample store at 250000 Hz: 20 train, 4 val"
 TRAINED_LINE = "train samples, loss"

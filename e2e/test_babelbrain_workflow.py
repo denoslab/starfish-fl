@@ -10,12 +10,12 @@ Scenario, through the router API only
 Step 1 - Register sites a, b and c
 Step 2 - Site a creates a BabelBrainFno project; b and c join
 Step 3 - Start a run. Nobody uploads a dataset
-Step 4 - Every run leaves Standby on its own and reaches a final state
-Step 5 - Every site's uploaded log shows it read its own store, and no log
-         holds a store path or an agent message
+Step 4 - Every run leaves Standby on its own and all three rounds finish
+Step 5 - The router holds one global model per round
+Step 6 - Every site's uploaded log shows it read its own store and trained,
+         and no log holds a store path or an agent message
 
-Until SF-04 adds training, every run ends Failed at the training step on
-purpose. SF-04 changes EXPECTED_FINAL_STATUS to Success.
+Uses the stand-in model on CPU, SF-04.
 """
 import io
 import time
@@ -35,16 +35,18 @@ TASKS = [{
     "seq": 1,
     "model": "BabelBrainFno",
     "config": {
-        "total_round": 1,
+        "total_round": 3,
         "current_round": 1,
         "data_source": {"type": "babelbrain_store", "bucket_hz": 250000},
         "min_samples": 20,
     },
 }]
-EXPECTED_FINAL_STATUS = "Failed"
+TOTAL_ROUNDS = 3
+EXPECTED_FINAL_STATUS = "Success"
 STORE_LINE = "Sample store at 250000 Hz: 20 train, 4 val"
+TRAINED_LINE = "train samples, loss"
 START_TIMEOUT_S = 90
-FINISH_TIMEOUT_S = 240
+FINISH_TIMEOUT_S = 900
 
 
 def api(method, path, **kwargs):
@@ -155,9 +157,7 @@ def test_runs_finish_and_logs_show_each_store(started_run):
     def logs_uploaded():
         response = api("GET", "/runs-action/download/", params={
             "run": coordinator["id"], "all_runs": "1", "type": "logs",
-            # Without task_seq and round_seq the router returns only the last
-            # run's files, a bug SF-02 fixes.
-            "task_seq": 1, "round_seq": 1})
+            "task_seq": 1, "round_seq": TOTAL_ROUNDS})
         if response.status_code != 200:
             return None
         with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
@@ -168,5 +168,19 @@ def test_runs_finish_and_logs_show_each_store(started_run):
     texts = wait_for(logs_uploaded, 60, "logs from all three sites")
     combined = "\n".join(texts)
     assert sum(STORE_LINE in t for t in texts) == 3, combined[-2000:]
+    assert sum(TRAINED_LINE in t for t in texts) == 3, combined[-2000:]
     assert "/babelbrain-store" not in combined
     assert "[Agent]" not in combined
+
+
+def test_router_holds_one_global_model_per_round(started_run):
+    project_id, batch = started_run
+    runs = all_runs(project_id, batch)
+    coordinator = next(r for r in runs if r["role"] in (
+        "CO", "Coordinator", "coordinator"))
+    response = api("GET", "/runs-action/files/", params={
+        "run": coordinator["id"], "type": "artifacts", "all_runs": "1"})
+    assert response.ok, response.text
+    names = sorted(f["name"] for f in response.json())
+    assert len(names) == TOTAL_ROUNDS, names
+    assert all(f["sha256"] and f["size"] > 0 for f in response.json())

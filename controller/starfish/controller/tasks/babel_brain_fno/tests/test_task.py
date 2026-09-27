@@ -9,7 +9,7 @@ import json
 import os
 import shutil
 import tempfile
-from unittest import TestCase
+from unittest import TestCase, skipUnless
 from unittest.mock import patch
 
 from starfish.controller.tasks.babel_brain_fno.store import STORE_ENV
@@ -19,6 +19,12 @@ from starfish.controller.tasks.data_source import validate_data_source
 from starfish.controller.tasks_validator import TaskValidator
 
 DATA_SOURCE = {'type': 'babelbrain_store', 'bucket_hz': 250000}
+
+try:
+    import torch  # noqa: F401
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 
 def make_config(**overrides):
@@ -119,6 +125,7 @@ class StandbyTest(TaskTestCase):
         BabelBrainFno(run).standby(run)
         notify.assert_not_called()
 
+    @skipUnless(HAS_TORCH, 'preparing builds the seed model, which needs torch')
     def test_standby_then_preparing_reaches_running_for_coordinator(self, notify):
         run = make_run(role='coordinator')
         task = BabelBrainFno(run)
@@ -133,25 +140,25 @@ class PrepareDataTest(TaskTestCase):
 
     def test_reads_the_store_from_the_environment(self):
         task = BabelBrainFno(make_run())
-        self.assertTrue(task.prepare_data())
+        self.assertTrue(task._prepare_samples())
         self.assertEqual(len(task.train_records), 16)
         self.assertEqual(len(task.val_records), 4)
         self.assertIn('16 train, 4 val', self.logs_text())
 
     def test_refuses_fewer_than_min_samples(self):
         task = BabelBrainFno(make_run(make_config(min_samples=17)))
-        self.assertFalse(task.prepare_data())
+        self.assertFalse(task._prepare_samples())
         self.assertIn('min_samples', self.logs_text())
 
     def test_default_min_samples_is_20(self):
         config = make_config()
         del config['min_samples']
-        self.assertFalse(BabelBrainFno(make_run(config)).prepare_data())
+        self.assertFalse(BabelBrainFno(make_run(config))._prepare_samples())
 
     def test_missing_environment_variable_fails(self):
         with patch.dict(os.environ, {}, clear=False):
             del os.environ[STORE_ENV]
-            self.assertFalse(BabelBrainFno(make_run()).prepare_data())
+            self.assertFalse(BabelBrainFno(make_run())._prepare_samples())
 
     def test_config_path_is_never_read(self):
         other = os.path.join(self.tmp, 'other-store')
@@ -160,7 +167,7 @@ class PrepareDataTest(TaskTestCase):
         config = make_config(data_source=dict(DATA_SOURCE, path=other))
         task = BabelBrainFno(make_run(config))
         with patch.object(BabelBrainFno, 'open_store') as open_store:
-            self.assertFalse(task.prepare_data())
+            self.assertFalse(task._prepare_samples())
             open_store.assert_not_called()
 
     def test_uploaded_logs_hold_no_local_paths(self):
@@ -169,20 +176,15 @@ class PrepareDataTest(TaskTestCase):
         with open(os.path.join(bucket_dir, victim), 'ab') as f:
             f.write(b'tamper')
         task = BabelBrainFno(make_run())
-        self.assertTrue(task.prepare_data())
+        self.assertTrue(task._prepare_samples())
         text = self.logs_text()
         self.assertIn('sha256_mismatch', text)
         self.assertNotIn(self.tmp, text)
         self.assertNotIn(os.path.realpath(self.tmp), text)
 
     def test_hash_cache_lives_in_the_controller_folder(self):
-        BabelBrainFno(make_run()).prepare_data()
+        BabelBrainFno(make_run())._prepare_samples()
         self.assertTrue(os.path.isfile(
             os.path.join(self.base, 'babelbrain_fl', 'sha256_cache.json')))
         self.assertEqual(sorted(os.listdir(os.path.join(self.root, 'v1'))),
                          ['.salt', '250000', 'manifest.jsonl'])
-
-    def test_training_is_not_implemented_yet(self):
-        task = BabelBrainFno(make_run())
-        self.assertFalse(task.training())
-        self.assertFalse(task.do_aggregate())

@@ -653,7 +653,7 @@ Never use `pickle`, `dill`, `joblib`, `pandas.read_pickle`, `numpy.load(allow_pi
 
 ### BabelBrainFno
 
-**Description:** Federated fine-tuning of the tFUS-FNO surrogate on samples exported by BabelBrain. Work in progress: the local data source is in place, training and aggregation arrive with SF-04, and until then a run fails at the training step on purpose.
+**Description:** Federated fine-tuning of the tFUS-FNO surrogate on samples exported by BabelBrain. Each round, every site trains on its own store from the current global model and sends only its weight delta. The coordinator adds the sample-weighted mean of the deltas to the global model and publishes the result. Until Tayeb's `tfus_fno` package exists, the task runs a tiny stand-in FNO, `babel_brain_fno/standin.py`, with the same interface.
 
 **File Location:** `starfish/controller/tasks/babel_brain_fno/`
 
@@ -689,7 +689,16 @@ For tests and the workbench, write a synthetic store with `python -m starfish.co
       "total_round": 1,
       "current_round": 1,
       "data_source": {"type": "babelbrain_store", "bucket_hz": 250000},
-      "min_samples": 20
+      "min_samples": 20,
+      "model_package": "standin",
+      "seed_model_version": "init:0",
+      "local_epochs": 1,
+      "batch_size": 1,
+      "lr": 0.001,
+      "curriculum": [
+        {"from_round": 1, "h1_weight": 0.0, "pde_weight": 0.0},
+        {"from_round": 5, "h1_weight": 0.5, "pde_weight": 0.1}
+      ]
     }
   }
 ]
@@ -697,6 +706,12 @@ For tests and the workbench, write a synthetic store with `python -m starfish.co
 
 - `bucket_hz`: one of 250000, 500000 or 750000.
 - `min_samples`: default 20. A site with fewer train samples in the bucket fails the preparing step.
+- `model_package`: `standin` now, `tfus_fno` once the pinned package exists. The package's `ARCH_HASH` is written into every artifact; a model from another architecture is rejected.
+- `seed_model_version`: `init:<seed>` starts every site from the same random init. Any other value names `<value>.safetensors` in the site's own `BABELBRAIN_FL_SEED_DIR`, never a path from config; `seed_model_sha256` pins its hash.
+- Training: `local_epochs`, `batch_size` default 1, `grad_accum`, `lr`, `weight_decay`, `amp` default true and used on CUDA only, `grad_checkpointing`, `clip_norm`, `device` default `auto` for CUDA then MPS then CPU, `seed`.
+- `curriculum`: loss weights by round, because FL rounds replace the paper's epochs. The last stage whose `from_round` has been reached applies.
+- Each round's log records train loss, local validation relative l2 and SSIM, seconds per epoch and peak memory. The coordinator refuses any delta trained from a different global model, for another round, or with another architecture, and any non-finite delta.
+- `accept_candidate` in `task.py` is the evaluation gate. It accepts every candidate until SF-05; a rejected candidate leaves the previous global model current.
 
 ## Writing R-Based Tasks
 

@@ -46,6 +46,9 @@ jobs:
           poetry lock
           poetry install --no-root --extras agent
 
+      - name: Install CPU-only PyTorch (for BabelBrainFno tests)
+        run: poetry run pip install "torch>=2.2,<3" --index-url https://download.pytorch.org/whl/cpu
+
       - name: Install R (for R-based task tests)
         run: |
           sudo apt-get update

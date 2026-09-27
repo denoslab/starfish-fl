@@ -186,6 +186,10 @@ def test_runs_finish_and_logs_show_each_store(started_run):
     assert reports[0]["round"] == TOTAL_ROUNDS
     assert reports[0]["eval_samples"] == 6
     assert {"current", "candidate", "accepted"} <= set(reports[0])
+    # The eval store carries region labels, D6: one sample per region class
+    breakdown = reports[0]["region_breakdown"]
+    assert set(breakdown) == {"P7", "P8", "PO7", "TP7", "TP8", "other"}, breakdown
+    assert all(r["candidate"]["n"] == 1 for r in breakdown.values()), breakdown
     assert "/babelbrain-store" not in combined
     assert "[Agent]" not in combined
 

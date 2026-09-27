@@ -6,7 +6,7 @@ this module can be imported on a site without the torch group.
 
 import numpy as np
 
-from starfish.controller.tasks.babel_brain_fno.store import SCHEMA_VERSION
+from starfish.controller.tasks.babel_brain_fno.store import SCHEMA_VERSIONS
 
 # Dataset name -> (dtype, rank), from the sample contract v1.
 SAMPLE_DATASETS = {
@@ -36,9 +36,9 @@ def read_sample(path):
             version = f.attrs.get('schema_version')
             if isinstance(version, bytes):
                 version = version.decode()
-            if version != SCHEMA_VERSION:
+            if version not in SCHEMA_VERSIONS:
                 raise SampleFormatError(
-                    'schema_version {!r}, expected {!r}'.format(version, SCHEMA_VERSION))
+                    'schema_version {!r}, expected one of {}'.format(version, SCHEMA_VERSIONS))
             arrays = {}
             for name, (dtype, rank) in SAMPLE_DATASETS.items():
                 if name not in f:

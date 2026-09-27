@@ -23,7 +23,9 @@ from starfish.controller.tasks.babel_brain_fno.store import (
     BUCKET_SPACING_MM,
     CROP_MM,
     MANIFEST_NAME,
+    REGIONS,
     SCHEMA_VERSION,
+    SCHEMA_VERSION_REGIONS,
     STORE_VERSION_DIR,
 )
 
@@ -38,7 +40,8 @@ def _sha256(path):
     return digest.hexdigest()
 
 
-def write_sample_file(path, sample_id, bucket_hz, shape=DEFAULT_SHAPE, rng=None):
+def write_sample_file(path, sample_id, bucket_hz, shape=DEFAULT_SHAPE, rng=None,
+                      schema_version=SCHEMA_VERSION):
     """Write one random sample in the contract's HDF5 layout."""
     import h5py
 
@@ -58,7 +61,7 @@ def write_sample_file(path, sample_id, bucket_hz, shape=DEFAULT_SHAPE, rng=None)
             0, 100, shape).astype(np.float32))
         f.create_dataset('brain_mask', data=(
             rng.random(shape) > 0.5).astype(np.uint8))
-        f.attrs['schema_version'] = SCHEMA_VERSION
+        f.attrs['schema_version'] = schema_version
         f.attrs['sample_id'] = sample_id
         f.attrs['frequency_hz'] = float(bucket_hz)
         f.attrs['spacing_mm'] = BUCKET_SPACING_MM[bucket_hz]
@@ -94,13 +97,17 @@ def _salt(store_root):
 
 
 def write_synthetic_store(store_root, n_groups=5, per_group=4, val_groups=1,
-                          bucket_hz=250000, shape=DEFAULT_SHAPE, seed=0):
+                          bucket_hz=250000, shape=DEFAULT_SHAPE, seed=0, regions=False):
     """Write a store with ``n_groups * per_group`` samples and return the manifest entries.
 
     The first ``val_groups`` groups go to ``val``, the rest to ``train``. The
     real exporter assigns splits by hashing ``group_id``; a fixed assignment
-    keeps test counts predictable.
+    keeps test counts predictable. With ``regions``, the store is a schema 1.1
+    test set: samples cycle through the region classes, as a NeuroFUS
+    eval-store export would label them.
     """
+    version = SCHEMA_VERSION_REGIONS if regions else SCHEMA_VERSION
+    count = 0
     rng = np.random.default_rng(seed)
     salt = _salt(store_root)
     entries = []
@@ -112,10 +119,11 @@ def write_synthetic_store(store_root, n_groups=5, per_group=4, val_groups=1,
             sample_id = str(uuid.UUID(bytes=rng.bytes(16), version=4))
             rel = '{}/{}.h5'.format(bucket_hz, sample_id)
             path = os.path.join(store_root, STORE_VERSION_DIR, rel)
-            write_sample_file(path, sample_id, bucket_hz, shape, rng)
+            write_sample_file(path, sample_id, bucket_hz, shape, rng,
+                              schema_version=version)
             entry = {
                 'sample_id': sample_id,
-                'schema_version': SCHEMA_VERSION,
+                'schema_version': version,
                 'file': rel,
                 'sha256': _sha256(path),
                 'frequency_hz': bucket_hz,
@@ -133,6 +141,10 @@ def write_synthetic_store(store_root, n_groups=5, per_group=4, val_groups=1,
                 'source': 'live',
                 'fingerprint': hashlib.sha256(rng.bytes(32)).hexdigest(),
             }
+            if regions:
+                entry['region'] = REGIONS[count % len(REGIONS)]
+                entry['source'] = 'backfill'
+            count += 1
             append_manifest(store_root, entry)
             entries.append(entry)
     return entries
@@ -148,10 +160,12 @@ def main(argv=None):
     parser.add_argument('--bucket', type=int, default=250000,
                         choices=sorted(BUCKET_SPACING_MM))
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--regions', action='store_true',
+                        help='write a schema 1.1 test set with region labels')
     args = parser.parse_args(argv)
     entries = write_synthetic_store(
         args.store_root, args.groups, args.per_group, args.val_groups,
-        args.bucket, seed=args.seed)
+        args.bucket, seed=args.seed, regions=args.regions)
     print('Wrote {} synthetic samples'.format(len(entries)))
 
 

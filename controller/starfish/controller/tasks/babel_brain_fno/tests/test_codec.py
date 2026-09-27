@@ -120,8 +120,8 @@ class CodecRejectionTest(TestCase):
                 dict(tensors, **{'a::scale': np.array([np.inf], np.float32)}), meta, self.d)
         tensors, meta, _ = codec.encode(self.d, {'method': 'fp16'})
         tensors['a'][0] = np.float16(np.inf)
-        with self.assertRaisesRegex(codec.CodecError, 'non-finite'):
-            codec.decode(tensors, meta, self.d)
+        # Non-finite values decode as they are; robust aggregation, SF-11, excludes the delta
+        self.assertTrue(np.isinf(codec.decode(tensors, meta, self.d)['a'][0]))
 
 
 @skipUnless(HAS_TORCH, 'torch is not installed')

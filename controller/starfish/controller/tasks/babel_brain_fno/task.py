@@ -78,6 +78,13 @@ class BabelBrainFno(AbstractTask):
     trainable : list of str, optional
         Parameter name prefixes to fine-tune; all others stay frozen and
         are not sent. Depends on T9.
+    aggregation : dict, optional
+        Robust aggregation, SF-11: ``clip_norm`` scales down longer deltas,
+        ``screen_factor`` excludes a delta whose norm is more than that many
+        times the median, from three sites up. Non-finite deltas are always
+        excluded.
+    fedprox_mu : float, default 0
+        Weight of the FedProx proximal term in local training.
     """
 
     agents_allowed = False
@@ -542,11 +549,24 @@ class BabelBrainFno(AbstractTask):
                 raise TaskError('a delta could not be decoded: {}'.format(e))
             updates.append((update, meta['n_samples']))
             sites.append(meta)
-        candidate = W.fedavg(base, updates)
+
+        # Robust aggregation, SF-11: exclude bad deltas and clip the rest
+        robust = self._config().get('aggregation') or {}
+        kept, excluded = W.screen(updates, robust.get(
+            'clip_norm'), robust.get('screen_factor'))
+        run_ids = [os.path.basename(p).split('-', 1)[0] for p in paths]
+        for index, reason in excluded:
+            self.logger.warning(
+                'Excluded the delta of run {}: {}'.format(run_ids[index], reason))
+        if not kept:
+            raise TaskError('every delta was excluded')
+        sites = [sites[index] for index, _, _ in kept]
+        candidate = W.fedavg(base, [(update, n) for _, update, n in kept])
 
         metrics = {'sites': len(sites),
                    'train_samples': sum(m['n_samples'] for m in sites),
-                   'delta_bytes': sum(m['metrics'].get('delta_bytes', 0) for m in sites)}
+                   'delta_bytes': sum(m['metrics'].get('delta_bytes', 0) for m in sites),
+                   'excluded': [{'run': run_ids[i], 'reason': r} for i, r in excluded]}
         val = [(m['metrics'].get('val_rel_l2'), m['metrics'].get('val_ssim'),
                 m['metrics'].get('val_samples', 0)) for m in sites]
         val = [v for v in val if v[0] is not None and v[2]]

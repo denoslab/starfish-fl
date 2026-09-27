@@ -49,6 +49,10 @@ TOTAL_ROUNDS = 3
 COMPRESSION = os.getenv("BABELBRAIN_E2E_COMPRESSION")
 if COMPRESSION:
     TASKS[0]["config"]["compression"] = {"method": COMPRESSION, "k": 0.05}
+# Optional SF-11 robust aggregation and FedProx, BABELBRAIN_E2E_ROBUST=1
+if os.getenv("BABELBRAIN_E2E_ROBUST"):
+    TASKS[0]["config"]["aggregation"] = {"screen_factor": 5, "clip_norm": 10.0}
+    TASKS[0]["config"]["fedprox_mu"] = 0.01
 EXPECTED_FINAL_STATUS = "Success"
 STORE_LINE = "Sample store at 250000 Hz: 20 train, 4 val"
 TRAINED_LINE = "train samples, loss"

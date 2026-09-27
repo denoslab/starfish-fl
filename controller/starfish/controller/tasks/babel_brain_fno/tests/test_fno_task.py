@@ -155,11 +155,13 @@ class RejectionTest(FnoTaskTestCase):
     def test_missing_delta_fails_the_round(self):
         self.assertFalse(self.aggregate(self.co, 2))
 
-    def test_non_finite_delta_is_rejected(self):
+    def test_non_finite_delta_is_excluded(self):
+        """Since SF-11 a non-finite delta is left out and the round goes on."""
         bad = {k: v.copy() for k, v in self.delta.items()}
         next(iter(bad.values())).flat[0] = np.inf
         self.add_delta(2, tensors=bad)
-        self.assertFalse(self.aggregate(self.co, 2))
+        self.assertTrue(self.aggregate(self.co, 2))
+        self.assertEqual(self.global_out(self.co)[1]['metrics']['sites'], 1)
 
     def test_gate_rejection_keeps_the_previous_global_model(self):
         base, base_meta = self.co.current_global()

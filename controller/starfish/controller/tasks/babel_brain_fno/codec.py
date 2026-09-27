@@ -91,7 +91,10 @@ def encode(delta, cfg, residual=None):
 
 
 def decode(tensors, codec_meta, base):
-    """The full delta, float32, one array per tensor of ``base``; missing tensors are zeros."""
+    """The full delta, float32, one array per tensor of ``base``; missing tensors are zeros.
+
+    Non-finite values pass through; robust aggregation, SF-11, excludes such deltas.
+    """
     method = (codec_meta or {}).get('method', 'none')
     if method not in METHODS:
         raise CodecError('unknown codec {!r}'.format(method))
@@ -144,10 +147,6 @@ def decode(tensors, codec_meta, base):
                 flat = np.zeros(ref.size, dtype=np.float32)
                 flat[idx] = parts['val'].astype(np.float32)
                 out[name] = flat.reshape(ref.shape)
-    for name, v in out.items():
-        if not np.all(np.isfinite(v)):
-            raise CodecError(
-                'decoded tensor {} has non-finite values'.format(name))
     return out
 
 

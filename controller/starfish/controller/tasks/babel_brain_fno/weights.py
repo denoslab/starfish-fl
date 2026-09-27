@@ -98,3 +98,44 @@ def digest(arrays):
         h.update(str(arr.shape).encode())
         h.update(arr.tobytes())
     return h.hexdigest()
+
+
+def update_norm(update):
+    """L2 norm of a whole delta, over every tensor."""
+    return float(np.sqrt(sum(float(np.sum(np.square(v, dtype=np.float64))) for v in update.values())))
+
+
+def screen(updates, clip_norm=None, screen_factor=None):
+    """Robust aggregation, SF-11: drop bad deltas, then clip the rest.
+
+    ``updates`` is a list of ``(delta, n_samples)``. Returns ``(kept, excluded)``:
+    ``kept`` holds ``(index, delta, n_samples)`` with clipping applied, and
+    ``excluded`` holds ``(index, reason)``. A delta with non-finite values is
+    always excluded. With ``screen_factor``, a delta whose norm is more than
+    that many times the median norm is excluded; this needs at least three
+    deltas, since the median of two cannot tell which one is off. With
+    ``clip_norm``, a kept delta longer than that is scaled down to it.
+    """
+    candidates, excluded = [], []
+    for index, (update, n) in enumerate(updates):
+        if not all(np.all(np.isfinite(v)) for v in update.values()):
+            excluded.append((index, 'non-finite values'))
+            continue
+        candidates.append((index, update, n, update_norm(update)))
+    if screen_factor and len(candidates) >= 3:
+        median = float(np.median([c[3] for c in candidates]))
+        if median > 0:
+            limit = float(screen_factor) * median
+            for c in list(candidates):
+                if c[3] > limit:
+                    candidates.remove(c)
+                    excluded.append((c[0], 'norm {:.4g} is more than {} times the median {:.4g}'.format(
+                        c[3], screen_factor, median)))
+    kept = []
+    for index, update, n, norm in candidates:
+        if clip_norm and norm > float(clip_norm):
+            factor = float(clip_norm) / norm
+            update = {name: (v * factor).astype(v.dtype)
+                      for name, v in update.items()}
+        kept.append((index, update, n))
+    return kept, sorted(excluded)

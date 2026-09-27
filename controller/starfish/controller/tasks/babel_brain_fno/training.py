@@ -101,6 +101,9 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
     clip = cfg.get('clip_norm')
     use_amp = bool(cfg.get('amp', True)) and device.type == 'cuda'
     params = [p for p in model.parameters() if p.requires_grad]
+    mu = float(cfg.get('fedprox_mu', 0.0) or 0.0)
+    # FedProx: pull local weights towards the global model they started from
+    anchors = [p.detach().clone() for p in params] if mu > 0 else None
     optimizer = torch.optim.AdamW(params, lr=float(cfg.get('lr', 1e-3)),
                                   weight_decay=float(cfg.get('weight_decay', 0.0)))
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp) if use_amp else None
@@ -117,6 +120,9 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
             with torch.autocast(device_type=device.type, enabled=use_amp):
                 pred = model(x)
             loss, parts = pkg.loss(pred.float(), y, aux, stage)
+            if anchors is not None:
+                loss = loss + 0.5 * mu * \
+                    sum((p - a).pow(2).sum() for p, a in zip(params, anchors))
             if not torch.isfinite(loss):
                 raise FloatingPointError(
                     'non-finite loss at epoch {} step {}'.format(epoch + 1, step))
@@ -143,4 +149,4 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
             epoch + 1, epochs, last_loss, epoch_seconds[-1]))
     return {'train_loss': last_loss, 'epoch_seconds': [round(s, 2) for s in epoch_seconds],
             'peak_memory_mb': round(peak_memory_mb(device), 1), 'device': device.type,
-            'amp': use_amp}
+            'amp': use_amp, 'fedprox_mu': mu}

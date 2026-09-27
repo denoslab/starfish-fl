@@ -95,3 +95,22 @@ class AgentSwitchTest(TestCase):
 
     def test_switch_skips_hooks(self):
         self._call({'STARFISH_DISABLE_AGENTS': '1'}).assert_not_called()
+
+
+class MigrationDriftTest(TestCase):
+    """Models and migrations must match.
+
+    The router's entrypoint runs makemigrations on every start, so any drift
+    writes a migration inside the container that no repo copy has. That has
+    happened with a default evaluated at import, uuid.uuid4() instead of
+    uuid.uuid4.
+    """
+
+    def test_no_missing_migrations(self):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        try:
+            call_command('makemigrations', '--check', '--dry-run', stdout=out, stderr=out)
+        except SystemExit:
+            self.fail('Models have changes without a migration:\n' + out.getvalue())

@@ -48,7 +48,7 @@ class Project(models.Model):
     name = models.CharField(max_length=100, blank=True, default='')
     description = models.TextField()
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    tasks = models.JSONField(encoder=None, decoder=None, default=[])
+    tasks = models.JSONField(encoder=None, decoder=None, default=list)
     batch = models.IntegerField()
     agent_config = models.JSONField(default=dict, blank=True)
     agent_log = models.JSONField(default=list, blank=True)
@@ -126,12 +126,12 @@ class Run(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     participant = models.ForeignKey(
         ProjectParticipant, on_delete=models.CASCADE)
-    site_uid = models.UUIDField(default=uuid.uuid4())
+    site_uid = models.UUIDField(default=uuid.uuid4)
     batch = models.IntegerField()
     cur_seq = models.IntegerField(default=1)
-    tasks = models.JSONField(encoder=None, decoder=None, default=[])
+    tasks = models.JSONField(encoder=None, decoder=None, default=list)
     middle_artifacts = models.JSONField(
-        encoder=None, decoder=None, default=[])
+        encoder=None, decoder=None, default=list)
     role = models.CharField(
         max_length=2,
         choices=ProjectParticipant.Role.choices,
@@ -139,8 +139,8 @@ class Run(models.Model):
     )
     status = FSMIntegerField(
         choices=RunStatus.choices, default=RunStatus.STANDBY, protected=True)
-    logs = models.JSONField(encoder=None, decoder=None, default=[])
-    artifacts = models.JSONField(encoder=None, decoder=None, default=[])
+    logs = models.JSONField(encoder=None, decoder=None, default=list)
+    artifacts = models.JSONField(encoder=None, decoder=None, default=list)
     agent_advice = models.JSONField(default=dict, blank=True)
     agent_diagnosis = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(editable=False)

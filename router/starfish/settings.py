@@ -18,6 +18,12 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_ROOT = '/starfish/artifacts'
 
+# Streamed artifact transfer, SF-02
+STARFISH_MAX_ARTIFACT_BYTES = int(
+    os.getenv('STARFISH_MAX_ARTIFACT_BYTES', 20 * 1024 ** 3))
+STARFISH_ARTIFACT_DISK_RESERVE_BYTES = int(
+    os.getenv('STARFISH_ARTIFACT_DISK_RESERVE_BYTES', 1024 ** 3))
+
 load_dotenv()
 
 

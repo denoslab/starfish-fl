@@ -247,6 +247,13 @@ Tasks that exchange arrays, such as model weights, must use `save_artifact` and 
 - `load_artifact(..., strict=False)` reads a safetensors file without Starfish metadata, such as converted seed weights. Use it only for files from a trusted source.
 - `weights_to_tensors` and `tensors_to_weights` convert an ordered weight list, such as Keras `get_weights()`, to and from named tensors.
 
+For large artifacts, such as model weights of hundreds of MB or more, move files with `starfish/controller/file/transfer.py` rather than the zipped `runs-action/upload` and `download` endpoints:
+
+- `upload_file(path, run_id, task_seq, round_seq, file_type, name=None)` streams the file to `PUT runs-action/file/`. The router keeps it only if its size and SHA-256 match, and stores an aggregated artifact once for the whole batch.
+- `list_files(run_id, file_type, task_seq, round_seq, all_runs=False)` returns name, size and SHA-256 per file. `all_runs=True` lists every run of the batch, for the coordinator only.
+- `download_file(run_id, file_type, entry, folder)` streams one listed file to disk and keeps it only if its SHA-256 matches; `download_all(...)` does every listed file.
+- Both retry the whole transfer on network errors and 5xx answers, `STARFISH_TRANSFER_RETRIES` times, default 3. The router refuses files over `STARFISH_MAX_ARTIFACT_BYTES`, default 20 GB, and uploads that would leave less than `STARFISH_ARTIFACT_DISK_RESERVE_BYTES` free, default 1 GB.
+
 Never use `pickle`, `dill`, `joblib`, `pandas.read_pickle`, `numpy.load(allow_pickle=True)` or `torch.load` without `weights_only=True` on files that came from another site: loading them can run arbitrary code on the coordinator. `test_artifact_io.py` fails if controller code outside tests does any of these.
 
 ### Cox Proportional Hazards

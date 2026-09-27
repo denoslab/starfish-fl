@@ -236,3 +236,19 @@ class Run(models.Model):
     class Meta:
         ordering = ['id']
         unique_together = ('project', 'participant', 'batch',)
+
+
+class StoredFile(models.Model):
+    """
+    Size and SHA-256 of a file on the router's disk, keyed by its path.
+
+    Runs keep their files as path lists; this table lets the router list and
+    serve files with their hashes without re-hashing multi-GB files.
+    """
+    path = models.CharField(max_length=500, unique=True)
+    size = models.BigIntegerField()
+    sha256 = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.path

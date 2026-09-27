@@ -1,4 +1,4 @@
-.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-down babelbrain-clean babelbrain-logs
+.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-down babelbrain-clean babelbrain-logs
 
 COMPOSE = docker-compose
 # Paths updated for mono repo structure
@@ -46,6 +46,10 @@ babelbrain-check:
 # Acceptance run through the router API; needs babelbrain-up first
 babelbrain-e2e:
 	cd ../e2e && python3 -m pytest test_babelbrain_workflow.py -v --timeout=300
+
+# SF-02: a 2 GB file to the router and back, peak RSS under 500 MB on both sides
+babelbrain-transfer:
+	cd ../e2e && python3 -m pytest test_large_transfer.py -v -s --timeout=1800
 
 babelbrain-logs:
 	$(BB_COMPOSE) logs --tail=100

@@ -22,6 +22,8 @@ from pathlib import Path
 from unittest import skipUnless
 from unittest.mock import patch, MagicMock
 
+from starfish.controller.file.artifact_io import (
+    load_artifact, save_artifact, tensors_to_weights, weights_to_tensors)
 from starfish.controller.tasks.federated_unet.task import FederatedUNet
 from starfish.controller.file.file_utils import _is_supported_image
 
@@ -213,17 +215,26 @@ class FedAvgAggregationTest(TestCase):
     def _make_task(self, **kwargs):
         return FederatedUNet(make_run(**kwargs))
 
-    def _write_mid_artifact(self, filename, weights, n_samples):
-        """Write a pickled mid-artifact with model weights and sample count."""
+    def _mid_dir(self):
         dir_path = Path(self.tmp_dir) / 'all-mid-artifacts' / '7' / '1'
         dir_path.mkdir(parents=True, exist_ok=True)
-        payload = {
-            'weights': weights,
+        return dir_path
+
+    def _write_mid_artifact(self, filename, weights, n_samples):
+        """Write a safetensors mid-artifact with model weights and sample count."""
+        save_artifact(str(self._mid_dir() / filename), weights_to_tensors(weights), {
+            'task': 'FederatedUNet',
+            'model_version': 'p7-b1-t1-r1',
+            'round': 1,
+            'kind': 'mid',
             'n_samples': n_samples,
             'metrics': {'loss': 0.5, 'iou_score': 0.6, 'f1-score': 0.7},
-        }
-        with open(dir_path / filename, 'wb') as f:
-            pickle.dump(payload, f)
+        })
+
+    def _read_global(self):
+        artifact_path = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
+        tensors, meta = load_artifact(artifact_path)
+        return tensors_to_weights(tensors), meta
 
     @patch.object(FederatedUNet, 'upload', return_value=True)
     def test_equal_weight_averaging(self, _):
@@ -236,9 +247,7 @@ class FedAvgAggregationTest(TestCase):
         task = self._make_task()
         self.assertTrue(task.do_aggregate())
 
-        artifact_path = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
-        with open(artifact_path, 'rb') as f:
-            result = pickle.load(f)
+        result, _ = self._read_global()
 
         np.testing.assert_allclose(result[0], [2.0, 3.0])
         np.testing.assert_allclose(result[1], [4.0])
@@ -254,9 +263,7 @@ class FedAvgAggregationTest(TestCase):
         task = self._make_task()
         task.do_aggregate()
 
-        artifact_path = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
-        with open(artifact_path, 'rb') as f:
-            result = pickle.load(f)
+        result, _ = self._read_global()
 
         # 25/100 * [0,0] + 75/100 * [4,8] = [3.0, 6.0]
         np.testing.assert_allclose(result[0], [3.0, 6.0])
@@ -269,9 +276,7 @@ class FedAvgAggregationTest(TestCase):
         task = self._make_task()
         task.do_aggregate()
 
-        artifact_path = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
-        with open(artifact_path, 'rb') as f:
-            result = pickle.load(f)
+        result, _ = self._read_global()
 
         np.testing.assert_allclose(result[0], [1.0, 2.0, 3.0])
 
@@ -288,6 +293,63 @@ class FedAvgAggregationTest(TestCase):
         task = self._make_task()
         task.do_aggregate()
         mock_upload.assert_called_once_with(True)
+
+    @patch.object(FederatedUNet, 'upload', return_value=True)
+    def test_global_artifact_records_total_samples(self, _):
+        self._write_mid_artifact(
+            'siteA-1-1-mid-artifacts', [np.array([1.0])], 30)
+        self._write_mid_artifact(
+            'siteB-1-1-mid-artifacts', [np.array([2.0])], 10)
+        task = self._make_task()
+        self.assertTrue(task.do_aggregate())
+        _, meta = self._read_global()
+        self.assertEqual(meta['kind'], 'global')
+        self.assertEqual(meta['n_samples'], 40)
+        self.assertEqual(meta['task'], 'FederatedUNet')
+        self.assertEqual(meta['round'], 1)
+        self.assertEqual(meta['model_version'], 'p7-b1-t1-r1')
+
+    @patch.object(FederatedUNet, 'upload', return_value=True)
+    def test_mid_artifact_without_metadata_is_rejected(self, mock_upload):
+        """A participant file missing n_samples must not be averaged in."""
+        from safetensors.numpy import save_file
+        self._write_mid_artifact(
+            'siteA-1-1-mid-artifacts', [np.array([1.0])], 10)
+        save_file(weights_to_tensors([np.array([9.0])]),
+                  str(self._mid_dir() / 'siteB-1-1-mid-artifacts'))
+        task = self._make_task()
+        self.assertFalse(task.do_aggregate())
+        mock_upload.assert_not_called()
+
+    @patch.object(FederatedUNet, 'upload', return_value=True)
+    def test_mismatched_weight_shapes_are_rejected(self, mock_upload):
+        """A scalar weight must not broadcast into another site's weights."""
+        self._write_mid_artifact(
+            'siteA-1-1-mid-artifacts', [np.array([1.0, 2.0])], 10)
+        self._write_mid_artifact(
+            'siteB-1-1-mid-artifacts', [np.array(5.0)], 10)
+        task = self._make_task()
+        self.assertFalse(task.do_aggregate())
+        mock_upload.assert_not_called()
+
+    @patch.object(FederatedUNet, 'upload', return_value=True)
+    def test_pickled_mid_artifact_is_rejected_without_running_it(self, mock_upload):
+        """A pickle sent by a participant must fail the round and never execute."""
+        marker = Path(self.tmp_dir) / 'pwned'
+
+        class Exploit:
+            def __reduce__(self):
+                return (open, (str(marker), 'w'))
+
+        self._write_mid_artifact(
+            'siteA-1-1-mid-artifacts', [np.array([1.0])], 10)
+        with open(self._mid_dir() / 'siteB-1-1-mid-artifacts', 'wb') as f:
+            pickle.dump({'weights': Exploit(), 'n_samples': 10}, f)
+
+        task = self._make_task()
+        self.assertFalse(task.do_aggregate())
+        self.assertFalse(marker.exists())
+        mock_upload.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -311,15 +373,23 @@ class ArtifactSerializationTest(TestCase):
         weights = [np.random.randn(3, 3), np.random.randn(5)]
         url = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
 
-        self.assertTrue(task.save_artifacts(url, weights))
+        self.assertTrue(task.save_artifacts(url, weights, {'n_samples': 5}))
         self.assertTrue(os.path.exists(url))
 
-        with open(url, 'rb') as f:
-            loaded = pickle.load(f)
+        tensors, meta = load_artifact(url)
+        loaded = tensors_to_weights(tensors)
 
+        self.assertEqual(meta['n_samples'], 5)
+        self.assertEqual(meta['task'], 'FederatedUNet')
         self.assertEqual(len(loaded), 2)
         np.testing.assert_array_equal(loaded[0], weights[0])
         np.testing.assert_array_equal(loaded[1], weights[1])
+
+    def test_save_requires_n_samples(self):
+        task = FederatedUNet(make_run())
+        url = os.path.join(self.tmp_dir, '42', '1', '1', 'artifacts')
+        self.assertFalse(task.save_artifacts(url, [np.ones(2)], {}))
+        self.assertFalse(os.path.exists(url))
 
     def test_save_returns_false_for_none(self):
         task = FederatedUNet(make_run())

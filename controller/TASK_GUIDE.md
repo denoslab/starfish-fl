@@ -234,6 +234,20 @@ masks/
 
 > **Note**: `resnet50` with `patch_size: 64` requires ~3.2 GB VRAM. On GPUs with less than 4 GB (e.g. GTX 1650), use `"architecture": "mobilenetv2"` and `"patch_size": 32` instead.
 
+**Artifacts:** Mid-artifacts and aggregated weights are safetensors files written with `starfish/controller/file/artifact_io.py`. Weights are stored as `w0000`, `w0001`, ... in `get_weights()` order. The file metadata holds `task`, `model_version` such as `p7-b1-t1-r2` for project, batch, task and round, `n_samples`, `round`, `metrics` and `kind`, which is `mid` or `global`. The coordinator fails the round, without loading anything, if a mid-artifact is not a valid safetensors file, such as a pickle, lacks this metadata, or has weight shapes that differ from the other sites.
+
+## Binary Artifacts in New Tasks
+
+Tasks that exchange arrays, such as model weights, must use `save_artifact` and `load_artifact` from `starfish/controller/file/artifact_io.py`:
+
+- `save_artifact(path, tensors, meta)` writes a dict of named numpy arrays atomically and returns the file's SHA-256.
+- `load_artifact(path, expected_sha256=None)` checks the hash when given and returns `(tensors, meta)`.
+- `meta` must hold `task`, `model_version`, `n_samples`, `round` and `metrics`; `schema` is added for you. A delta, `kind: "delta"`, must also hold `base_version`, the global version it applies to. Both functions raise `ArtifactError` on missing or badly typed keys.
+- `load_artifact(..., strict=False)` reads a safetensors file without Starfish metadata, such as converted seed weights. Use it only for files from a trusted source.
+- `weights_to_tensors` and `tensors_to_weights` convert an ordered weight list, such as Keras `get_weights()`, to and from named tensors.
+
+Never use `pickle`, `dill`, `joblib`, `pandas.read_pickle`, `numpy.load(allow_pickle=True)` or `torch.load` without `weights_only=True` on files that came from another site: loading them can run arbitrary code on the coordinator. `test_artifact_io.py` fails if controller code outside tests does any of these.
+
 ### Cox Proportional Hazards
 
 **Description:** Time-to-event analysis using Cox Proportional Hazards regression

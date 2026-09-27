@@ -1,5 +1,6 @@
 from celery.utils.log import get_task_logger
 
+from starfish.controller.tasks.data_source import get_data_source, validate_data_source
 from starfish.controller.utils import parse_tasks, load_class, camel_to_snake
 
 logger = get_task_logger(__name__)
@@ -84,3 +85,7 @@ class TaskValidator:
             if config is None or not isinstance(config, dict) or len(config) == 0:
                 self.errors.append(
                     'config must be a key-value map and could not be empty')
+            elif get_data_source(config) is not None:
+                error = validate_data_source(get_data_source(config))
+                if error:
+                    self.errors.append(error)

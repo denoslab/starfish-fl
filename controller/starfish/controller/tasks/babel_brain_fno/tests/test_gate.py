@@ -75,8 +75,8 @@ class MetricsTest(TestCase):
         self.assertEqual(s['rel_l2_pct'], {'mean': 3.0, 'std': float(np.std([1, 2, 6])),
                                            'median': 2.0})
 
-    def test_confirm_constants_until_tayeb_answers_t7(self):
-        """Fails on purpose when a CONFIRM value changes: update this test and the spec together."""
+    def test_metric_choices_confirmed_on_2026_09_27(self):
+        """The metric details confirmed in T7. Change them only with the spec."""
         self.assertEqual(M.SSIM_WINDOW, 7)
         self.assertEqual(M.DATA_RANGE, 'true_max_minus_min')
         self.assertEqual(M.PEAK_ERROR_AT, 'own_peak')

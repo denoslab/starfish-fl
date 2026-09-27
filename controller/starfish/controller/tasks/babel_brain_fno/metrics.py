@@ -7,9 +7,8 @@ the peak amplitude in percent, and distance between the centroids of the
 -3 dB focal regions in mm. Definitions follow section 2.2 of Tayeb's
 preprint, context/tfus-fno-paper-notes.md in babelbrain-docs.
 
-The paper does not pin every detail. Each open detail is a CONFIRM constant
-below, to check against Tayeb's evaluation script, T7. The target is agreement
-within 1e-4 relative on his saved test predictions.
+The paper does not pin every detail. The choices below were confirmed on
+2026-09-27, answer T7 in babelbrain-docs/open-questions.md; a test pins each.
 
 Fields are arrays of shape (2, X, Y, Z), real and imaginary parts. Only
 ratios and positions are used, so any common scaling of both fields, such as
@@ -20,16 +19,16 @@ import math
 
 import numpy as np
 
-# CONFIRM with Tayeb, T7: SSIM window. Here a uniform cube of this many voxels per side.
+# Confirmed, T7: SSIM window. Here a uniform cube of this many voxels per side.
 SSIM_WINDOW = 7
-# CONFIRM, T7: SSIM and PSNR data range. Here the true amplitude's maximum minus its minimum.
+# Confirmed, T7: SSIM and PSNR data range. Here the true amplitude's maximum minus its minimum.
 DATA_RANGE = 'true_max_minus_min'
-# CONFIRM, T7: peak amplitude error compares each field's own intra-brain peak.
+# Confirmed, T7: peak amplitude error compares each field's own intra-brain peak.
 PEAK_ERROR_AT = 'own_peak'
-# CONFIRM, T7: the -3 dB focal region is every brain voxel at or above this share of
+# Confirmed, T7: the -3 dB focal region is every brain voxel at or above this share of
 # the intra-brain peak amplitude. -3 dB in pressure amplitude is 10 ** (-3 / 20).
 FOCAL_AMPLITUDE_FRACTION = 10 ** (-3 / 20)
-# CONFIRM, T7: centroid of the region's voxel positions, not weighted by amplitude.
+# Confirmed, T7: centroid of the region's voxel positions, not weighted by amplitude.
 CENTROID_WEIGHTED = False
 
 METRICS = ('rel_l2_pct', 'ssim', 'psnr_db', 'peak_distance_mm', 'peak_amplitude_error_pct',

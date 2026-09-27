@@ -58,7 +58,8 @@ class TransferTestCase(APITestCase):
         sites = [Site.objects.create(name='site-{}'.format(i), description='d', uid=uuid4(),
                                      owner=self.user) for i in range(3)]
         self.project = Project.objects.create(name='p', description='d', site=sites[0], batch=0,
-                                              tasks=[{'seq': 1, 'model': 'X', 'config': {}}])
+                                              tasks=[{'seq': 1, 'model': 'X', 'config': {
+                                                  'total_round': 3, 'current_round': 1}}])
         roles = [ProjectParticipant.Role.COORDINATOR] + \
             [ProjectParticipant.Role.PARTICIPANT] * 2
         participants = [ProjectParticipant.objects.create(

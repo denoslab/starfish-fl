@@ -121,3 +121,31 @@ class FedProxTest(FnoTaskTestCase):
         plain, _ = self.delta_of(1, lr=1e-2)
         prox, _ = self.delta_of(1, lr=1e-2, fedprox_mu=100.0)
         self.assertLess(W.update_norm(prox), W.update_norm(plain))
+
+
+@skipUnless(HAS_TORCH, 'torch is not installed')
+class QuorumAggregationTest(FnoTaskTestCase):
+    """SF-10: with min_participants, a structurally bad delta excludes its site."""
+
+    def setUp(self):
+        super().setUp()
+        self.co = self.trained_site(1, min_participants=1)
+        self.folder = self.deliver(self.co, self.co)
+        self.delta, self.meta = load_artifact(self.co._mid_path())
+
+    def test_delta_from_another_global_model_is_excluded(self):
+        save_artifact(os.path.join(self.folder, '2-1-1-mid-artifacts'), self.delta,
+                      dict(self.meta, base_digest='0' * 64))
+        self.assertTrue(self.aggregate(self.co, 2))
+        _, gmeta = self.global_out(self.co)
+        self.assertEqual(gmeta['metrics']['sites'], 1)
+        self.assertEqual(gmeta['metrics']['excluded'][0]['run'], '2')
+        self.assertIn('different global model',
+                      gmeta['metrics']['excluded'][0]['reason'])
+
+    def test_fewer_deltas_than_the_quorum_fail_the_round(self):
+        from starfish.controller.tasks.babel_brain_fno.task import BabelBrainFno
+        from starfish.controller.tasks.babel_brain_fno.tests.test_fno_task import make_run
+        co = BabelBrainFno(make_run(min_participants=2))
+        co.prepare_data()
+        self.assertFalse(self.aggregate(co, 1))

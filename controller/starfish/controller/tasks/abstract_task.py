@@ -4,6 +4,7 @@ import logging
 import os
 import traceback
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 
 import requests
 from dotenv import load_dotenv
@@ -24,6 +25,8 @@ router_username = os.getenv('ROUTER_USERNAME')
 router_password = os.getenv('ROUTER_PASSWORD')
 
 AGENTS_DISABLED_ENV = 'STARFISH_DISABLE_AGENTS'
+FAILED_STATES = ('pending_failed', 'failed')
+SITTING_OUT = 'sitting_out'
 
 
 def agents_disabled_on_site():
@@ -117,11 +120,14 @@ class AbstractTask(ABC):
             s = inspect.currentframe().f_code.co_name
             if self.role == 'coordinator':
                 self.status = s
-                if self.runs_in_fails() or not self.prepare_data():
+                if self.round_failed() or not self.prepare_data():
                     self.notify(1, param={'update_all': True})
                     return
-                if self.runs_in_same_state('preparing'):
-                    self.notify(4, param={'update_all': True})
+                action, sit_out = self.round_quorum('preparing')
+                if action == 'fail':
+                    self.notify(1, param={'update_all': True})
+                elif action == 'proceed':
+                    self.notify(4, param=self._update_all_param(sit_out))
             else:
                 if not self.prepare_data():
                     self.notify(1, param={'update_all': False})
@@ -204,10 +210,11 @@ class AbstractTask(ABC):
             s = inspect.currentframe().f_code.co_name
             if self.role == 'coordinator':
                 self.status = s
-                if self.runs_in_fails():
+                action, sit_out = self.round_quorum('pending_aggregating')
+                if action == 'fail':
                     self.notify(0, param={'update_all': True})
-                if self.runs_in_same_state('pending_aggregating') and self.download_mid_artifacts():
-                    self.notify(7, param={'update_all': True})
+                elif action == 'proceed' and self.download_mid_artifacts():
+                    self.notify(7, param=self._update_all_param(sit_out))
             else:
                 if self.status == s:
                     self.logger.warning(
@@ -232,7 +239,7 @@ class AbstractTask(ABC):
             s = inspect.currentframe().f_code.co_name
             if self.role == 'coordinator':
                 self.status = s
-                if self.runs_in_fails():
+                if self.round_failed():
                     self.notify(0, param={'update_all': True})
 
                 # Agent hook: pre-aggregation outlier detection
@@ -555,6 +562,99 @@ class AbstractTask(ABC):
             return True
         else:
             return False
+
+    def quorum_settings(self):
+        """``(min_participants, round_deadline_minutes)`` from the task config, or None each."""
+        config = self.tasks[self.cur_seq -
+                            1].get('config', {}) if self.tasks else {}
+        minimum = config.get('min_participants')
+        deadline = config.get('round_deadline_minutes')
+        return (int(minimum) if minimum else None,
+                float(deadline) if deadline is not None else None)
+
+    def round_quorum(self, expected_state):
+        """
+        Coordinator: whether the round can move on from ``expected_state``, SF-10.
+
+        Returns ``(action, sit_out)``: action is ``proceed``, ``wait`` or ``fail``,
+        and ``sit_out`` lists the run ids to mark as sitting out this round.
+        Without ``min_participants`` every site must be ready and any failure
+        fails the round, as before. With it, failed and sitting-out sites drop
+        out; the round moves on when every remaining site is ready, or when
+        ``round_deadline_minutes`` have passed since this step began and at
+        least ``min_participants`` are ready. It fails only if the coordinator
+        fails or fewer than ``min_participants`` sites remain.
+        """
+        minimum, deadline = self.quorum_settings()
+        if minimum is None:
+            # Every site, exactly as before SF-10
+            if self.runs_in_fails():
+                return 'fail', []
+            return ('proceed' if self.runs_in_same_state(expected_state) else 'wait'), []
+        runs = self.fetch_runs() or []
+        if not runs:
+            return 'wait', []
+        states = {r['id']: format_status(r['status']) for r in runs}
+
+        me = next((r for r in runs if r.get('role') == 'coordinator'), None)
+        if me is None or states[me['id']] in FAILED_STATES:
+            return 'fail', []
+        failed = [i for i, st in states.items() if st in FAILED_STATES]
+        active = [i for i, st in states.items(
+        ) if st not in FAILED_STATES and st != SITTING_OUT]
+        ready = [i for i in active if states[i] == expected_state]
+        if len(active) < minimum:
+            self.logger.error('Only {} sites left, fewer than min_participants {}'.format(
+                len(active), minimum))
+            return 'fail', []
+        if len(ready) == len(active):
+            return 'proceed', failed
+        if deadline is not None and len(ready) >= minimum and \
+                self._seconds_since(me.get('updated_at')) >= deadline * 60:
+            late = [i for i in active if i not in ready]
+            self.logger.warning('Deadline passed: going on with {} of {} sites; runs {} sit out'.format(
+                len(ready), len(active), sorted(late + failed)))
+            return 'proceed', sorted(late + failed)
+        return 'wait', []
+
+    @staticmethod
+    def _update_all_param(sit_out):
+        """The status update for every run; lists runs to sit out only when there are some."""
+        param = {'update_all': True}
+        if sit_out:
+            param['sit_out'] = sit_out
+        return param
+
+    @staticmethod
+    def _seconds_since(timestamp):
+        if not timestamp:
+            return 0.0
+        then = datetime.fromisoformat(str(timestamp).replace('Z', '+00:00'))
+        if then.tzinfo is None:
+            then = then.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - then).total_seconds()
+
+    def round_failed(self):
+        """Coordinator: whether failures have broken the round."""
+        if self.quorum_settings()[0] is None:
+            return self.runs_in_fails()
+        return self.round_quorum('none')[0] == 'fail'
+
+    def active_runs(self):
+        """Runs of this batch that take part in the round: not failed, not sitting out."""
+        return [r for r in (self.fetch_runs() or [])
+                if format_status(r['status']) not in FAILED_STATES + (SITTING_OUT,)]
+
+    def sitting_out(self, *args, **kwargs):
+        """Status: Sitting Out, 9. This site misses the round and rejoins at the next Standby."""
+        try:
+            self.post_init(args[0])
+            self.status = 'sitting_out'
+            self.logger.info('Sitting out round {}; rejoining at the next round'.format(
+                self.get_round()))
+        except Exception as e:
+            self.logger.warning(
+                'Exception in sitting_out status: {}'.format(e))
 
     def runs_in_fails(self) -> bool:
         runs = self.fetch_runs()

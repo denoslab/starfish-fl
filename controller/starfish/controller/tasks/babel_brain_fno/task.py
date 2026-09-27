@@ -522,53 +522,75 @@ class BabelBrainFno(AbstractTask):
             self.logger.error('Aggregation failed: {}'.format(e))
             return False
 
+    def _read_delta(self, path, task_round, base, base_digest):
+        """Load, check and decode one site's delta, or raise TaskError saying why not."""
+        tensors, meta = load_artifact(path)
+        self._check_meta(meta, 'delta')
+        if meta['round'] != task_round:
+            raise TaskError('a delta is for round {}, not {}'.format(
+                meta['round'], task_round))
+        if meta.get('base_digest') != base_digest:
+            raise TaskError(
+                'a delta was trained from a different global model')
+        try:
+            return codec.decode(tensors, meta.get('codec'), base), meta
+        except codec.CodecError as e:
+            raise TaskError('a delta could not be decoded: {}'.format(e))
+
     def _aggregate(self):
         task_round = self._round()
         base, base_meta = self.current_global()
         base_digest = W.digest(base)
         paths = sorted(glob.glob(os.path.join(
             self._mids_dir(), '*-mid-artifacts')))
-        runs = self.fetch_runs() or []
-        if runs and len(paths) != len(runs):
-            raise TaskError('expected {} deltas, found {}'.format(
-                len(runs), len(paths)))
+        minimum, _ = self.quorum_settings()
+        if minimum is None:
+            runs = self.fetch_runs() or []
+            if runs and len(paths) != len(runs):
+                raise TaskError('expected {} deltas, found {}'.format(
+                    len(runs), len(paths)))
+        elif len(paths) < minimum:
+            raise TaskError('only {} deltas, fewer than min_participants {}'.format(
+                len(paths), minimum))
         if not paths:
             raise TaskError('no deltas to aggregate')
 
-        updates, sites = [], []
+        updates, sites, run_ids, excluded = [], [], [], []
         for path in paths:
-            tensors, meta = load_artifact(path)
-            self._check_meta(meta, 'delta')
-            if meta['round'] != task_round:
-                raise TaskError('a delta is for round {}, not {}'.format(
-                    meta['round'], task_round))
-            if meta.get('base_digest') != base_digest:
-                raise TaskError(
-                    'a delta was trained from a different global model')
+            run_id = os.path.basename(path).split('-', 1)[0]
             try:
-                update = codec.decode(tensors, meta.get('codec'), base)
-            except codec.CodecError as e:
-                raise TaskError('a delta could not be decoded: {}'.format(e))
+                update, meta = self._read_delta(
+                    path, task_round, base, base_digest)
+            except (TaskError, ArtifactError) as e:
+                if minimum is None:
+                    raise
+                # Partial participation, SF-10: one bad site does not stop the round
+                excluded.append((run_id, str(e)))
+                continue
             updates.append((update, meta['n_samples']))
             sites.append(meta)
+            run_ids.append(run_id)
 
         # Robust aggregation, SF-11: exclude bad deltas and clip the rest
         robust = self._config().get('aggregation') or {}
-        kept, excluded = W.screen(updates, robust.get(
+        kept, screened = W.screen(updates, robust.get(
             'clip_norm'), robust.get('screen_factor'))
-        run_ids = [os.path.basename(p).split('-', 1)[0] for p in paths]
-        for index, reason in excluded:
+        excluded += [(run_ids[index], reason) for index, reason in screened]
+        for run_id, reason in excluded:
             self.logger.warning(
-                'Excluded the delta of run {}: {}'.format(run_ids[index], reason))
+                'Excluded the delta of run {}: {}'.format(run_id, reason))
         if not kept:
             raise TaskError('every delta was excluded')
+        if minimum is not None and len(kept) < minimum:
+            raise TaskError('only {} usable deltas, fewer than min_participants {}'.format(
+                len(kept), minimum))
         sites = [sites[index] for index, _, _ in kept]
         candidate = W.fedavg(base, [(update, n) for _, update, n in kept])
 
         metrics = {'sites': len(sites),
                    'train_samples': sum(m['n_samples'] for m in sites),
                    'delta_bytes': sum(m['metrics'].get('delta_bytes', 0) for m in sites),
-                   'excluded': [{'run': run_ids[i], 'reason': r} for i, r in excluded]}
+                   'excluded': [{'run': run_id, 'reason': r} for run_id, r in excluded]}
         val = [(m['metrics'].get('val_rel_l2'), m['metrics'].get('val_ssim'),
                 m['metrics'].get('val_samples', 0)) for m in sites]
         val = [v for v in val if v[0] is not None and v[2]]

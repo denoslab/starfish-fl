@@ -122,6 +122,8 @@ class Run(models.Model):
         PENDING_AGGREGATING = 6
         AGGREGATING = 7
         SUCCESS = 8
+        # A site that misses a round under partial participation, SF-10
+        SITTING_OUT = 9
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     participant = models.ForeignKey(

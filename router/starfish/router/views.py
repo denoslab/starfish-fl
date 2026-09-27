@@ -242,6 +242,9 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
             if run.role == ProjectParticipant.Role.COORDINATOR and update_all:
                 runs = Run.objects.select_for_update().filter(
                     project=project_id, batch=run.batch)
+                # Partial participation, SF-10: runs to mark as sitting out this round
+                sit_out = [int(i) for i in (request.data.get('sit_out') or [])
+                           if int(i) != run.id]
                 if increase_round:
                     if run.cur_seq <= len(run.tasks):
                         tasks = run.tasks
@@ -253,7 +256,16 @@ class RunViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, mixins.List
                         else:
                             if run.cur_seq < len(run.tasks):
                                 runs.update(cur_seq=run.cur_seq + 1)
-                runs.update(status=state)
+                now = timezone.now()
+                if int(state) == Run.RunStatus.STANDBY:
+                    # A new round: every site takes part again
+                    runs.update(status=state, updated_at=now)
+                else:
+                    runs.exclude(status=Run.RunStatus.SITTING_OUT).exclude(
+                        id__in=sit_out).update(status=state, updated_at=now)
+                    if sit_out:
+                        runs.filter(id__in=sit_out).update(
+                            status=Run.RunStatus.SITTING_OUT, updated_at=now)
             else:
                 run = self.get_with_lock()
                 run = Run.update_status(run, state)

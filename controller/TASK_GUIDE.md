@@ -865,6 +865,8 @@ All R-based tasks include equivalent diagnostics via the shared `r_diagnostics_u
 - **m**: (Multiple Imputation only) Number of imputed datasets to create (default: 5)
 - **max_iter**: (Multiple Imputation only) Max MICE iterations per imputation (default: 10)
 - **description**: Optional description of what this task does
+- **min_participants**: (Any task) Partial participation. Without it, every site must finish every step and any failure fails the round. With it, failed sites drop out and the round fails only when fewer than this many sites remain; a dropped site's run is marked `Sitting Out` and rejoins at the next round's Standby
+- **round_deadline_minutes**: (Any task, with `min_participants`) How long the coordinator waits at each step for late sites. When it has passed and at least `min_participants` sites are ready, the round goes on and the late sites sit out. Without it, the coordinator waits for every remaining site
 
 ## Step-by-Step: Creating a Project
 

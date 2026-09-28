@@ -1,4 +1,5 @@
-.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-partial babelbrain-tokens babelbrain-down babelbrain-clean babelbrain-logs
+.PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-partial babelbrain-tokens babelbrain-down babelbrain-clean babelbrain-logs \
+	babelbrain-demo-check-fork babelbrain-demo-stores babelbrain-demo-up babelbrain-demo-run babelbrain-demo-tab babelbrain-demo-down babelbrain-demo-clean
 
 COMPOSE = docker-compose
 # Paths updated for mono repo structure
@@ -30,6 +31,7 @@ babelbrain-build:
 	$(BB_COMPOSE) build
 
 babelbrain-up: babelbrain-build
+	-@$(DEMO_COMPOSE) down 2>/dev/null
 	$(BB_COMPOSE) up -d --wait
 
 # REDIS_DB=15 because importing starfish clears the run cache in its Redis DB.
@@ -68,3 +70,41 @@ babelbrain-down:
 # Also deletes the synthetic stores and all run data
 babelbrain-clean:
 	$(BB_COMPOSE) down -v
+
+# ── BabelBrain FL demo, see babelbrain-demo/README.md ────────────────────────
+# Stores written by BabelBrain's exporter from toy Step 2 runs; needs a
+# checkout of the denoslab/BabelBrain fork next to starfish-fl
+BABELBRAIN_DIR ?= $(abspath ../../BabelBrain)
+export BABELBRAIN_DIR
+DEMO_COMPOSE = docker compose -p starfish-babelbrain-demo -f compose/babelbrain.yaml -f compose/babelbrain-demo.yaml
+PYTHON ?= python3
+
+babelbrain-demo-check-fork:
+	@test -f "$(BABELBRAIN_DIR)/BabelBrain/FederatedLearning/exporter.py" || \
+		{ echo "No FederatedLearning package in $(BABELBRAIN_DIR); set BABELBRAIN_DIR to a denoslab/BabelBrain checkout of feature/babelbrain-fl"; exit 1; }
+
+# Step 1: toy Step 2 runs, then BabelBrain's backfill and live export into the stores
+babelbrain-demo-stores: babelbrain-demo-check-fork babelbrain-build
+	$(DEMO_COMPOSE) run --rm --no-deps --entrypoint python3 store-init /demo/make_stores.py --root /demo-data --reset
+
+# Step 2: the router and three sites on those stores. Stops the SF-06 profile, which uses the same ports
+babelbrain-demo-up: babelbrain-demo-check-fork babelbrain-build
+	$(BB_COMPOSE) down
+	$(DEMO_COMPOSE) up -d --wait
+
+# Step 3: one federated run, narrated; about 2 minutes. Options go in DEMO_ARGS, for example
+# DEMO_ARGS="--peak-margin-mm 0.5 --rounds 4"
+babelbrain-demo-run:
+	$(DEMO_COMPOSE) run --rm demo-run $(DEMO_ARGS)
+
+# Optional: BabelBrain's FL tab on site B's store; needs PySide6, numpy and h5py, as in BabelBrain's environment
+babelbrain-demo-tab: babelbrain-demo-check-fork
+	$(PYTHON) babelbrain-demo/show_fl_tab.py --store .babelbrain-demo/stores/site-b
+
+babelbrain-demo-down:
+	$(DEMO_COMPOSE) down
+
+# Also deletes the demo stores and all run data
+babelbrain-demo-clean:
+	$(DEMO_COMPOSE) down -v
+	rm -rf .babelbrain-demo

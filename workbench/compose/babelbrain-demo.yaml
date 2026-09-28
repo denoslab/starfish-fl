@@ -1,0 +1,61 @@
+# BabelBrain FL demo, on top of babelbrain.yaml. See babelbrain-demo/README.md.
+#
+# The same router and three sites, with sample stores written by BabelBrain's
+# own exporter and backfill tool from toy Step 2 runs, instead of by the
+# Starfish generator. Needs a checkout of the denoslab/BabelBrain fork with
+# the FederatedLearning package; the Makefile passes its path as
+# BABELBRAIN_DIR.
+#
+# The stores live on the host in workbench/.babelbrain-demo/stores, so the
+# BabelBrain FL tab can open them too. Each site still mounts only its own
+# store, read-only. Runs under its own compose project,
+# starfish-babelbrain-demo, so its volumes never mix with the SF-06 profile.
+
+services:
+
+  store-init:
+    depends_on: !reset {}
+    environment:
+      BABELBRAIN_PKG: /babelbrain
+    entrypoint: ["python3", "/demo/make_stores.py", "--root", "/demo-data"]
+    volumes: !override
+      - ../babelbrain-demo:/demo:ro
+      - ../.babelbrain-demo:/demo-data
+      - ${BABELBRAIN_DIR:?set BABELBRAIN_DIR to a denoslab/BabelBrain checkout}/BabelBrain:/babelbrain:ro
+
+  # make babelbrain-demo-run; not started by up
+  demo-run:
+    image: starfish-controller-babelbrain
+    pull_policy: never
+    profiles: ["demo-run"]
+    depends_on:
+      router:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: redis
+      REDIS_DB: "15"
+    entrypoint: ["python3", "/demo/run_demo.py"]
+    volumes:
+      - ../babelbrain-demo:/demo:ro
+
+  controller-a: &site-a
+    volumes:
+      - ../.babelbrain-demo/stores/site-a:/babelbrain-store:ro
+      - ../.babelbrain-demo/stores/eval-a:/babelbrain-eval-store:ro
+  controller-a-scheduler: *site-a
+  controller-a-run-worker: *site-a
+  controller-a-processor-worker: *site-a
+
+  controller-b: &site-b
+    volumes:
+      - ../.babelbrain-demo/stores/site-b:/babelbrain-store:ro
+  controller-b-scheduler: *site-b
+  controller-b-run-worker: *site-b
+  controller-b-processor-worker: *site-b
+
+  controller-c: &site-c
+    volumes:
+      - ../.babelbrain-demo/stores/site-c:/babelbrain-store:ro
+  controller-c-scheduler: *site-c
+  controller-c-run-worker: *site-c
+  controller-c-processor-worker: *site-c

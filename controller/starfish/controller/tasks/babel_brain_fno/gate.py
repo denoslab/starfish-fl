@@ -3,17 +3,21 @@
 The coordinator scores the current global model and each aggregated
 candidate on its own held-out store, ``BABELBRAIN_FL_EVAL_STORE``, which
 holds the test subjects exported with the same sample contract. The
-candidate becomes the new global model only if it does not regress by
-more than the configured margins. The defaults allow no regression at all,
-confirmed on 2026-09-27, answer T8, knowing that a noisy focal metric on a
-small eval set can then hold the current model for several rounds.
+candidate becomes the new global model only if its mean relative l2 error
+does not rise by more than the configured margin. Relative l2 is the
+primary metric, decided on 2026-10-16. This supersedes answer T8 of
+2026-09-27, which also blocked any rise in peak distance and so held the
+model back on a noisy focal metric. The default margin is zero.
 
 Config, under the task's ``gate`` key::
 
-    {"enabled": true, "max_rel_l2_increase": 0.0, "max_peak_distance_increase_mm": 0.0}
+    {"enabled": true, "max_rel_l2_increase": 0.0, "max_peak_distance_increase_mm": null}
 
-Both margins compare means over the eval store. ``rel_l2`` is in percent
-points. Disabling the gate is explicit; a missing eval store fails the round.
+``rel_l2`` is in percent points and compared on the mean over the eval
+store. Peak distance, SSIM, PSNR and the other metrics are reported but do
+not block. Setting ``max_peak_distance_increase_mm`` to a number opts back
+into a check on the mean peak distance, in mm. Disabling the gate is
+explicit; a missing eval store fails the round.
 
 When the eval store is a schema 1.1 test set with region labels, decision
 D6, the report also gives both models' scores per target region. The gate
@@ -28,8 +32,9 @@ from starfish.controller.tasks.babel_brain_fno import metrics as M
 from starfish.controller.tasks.babel_brain_fno.store import REGIONS
 
 EVAL_STORE_ENV = 'BABELBRAIN_FL_EVAL_STORE'
+# Peak distance is reported only, unless a config sets a margin for it.
 DEFAULT_GATE = {'enabled': True, 'max_rel_l2_increase': 0.0,
-                'max_peak_distance_increase_mm': 0.0}
+                'max_peak_distance_increase_mm': None}
 # The per-region breakdown uses the schema 1.1 region labels of the NeuroFUS test set, D6.
 # An eval store without labels gives no breakdown.
 REGION_BREAKDOWN_AVAILABLE = True
@@ -95,11 +100,16 @@ def region_breakdown(current, candidate):
 
 
 def decide(candidate, current, cfg):
-    """``(accepted, reasons)``: reject when a margin is exceeded or a score is not finite."""
+    """``(accepted, reasons)``: reject when a margin is exceeded or a score is not finite.
+
+    A metric whose margin is None is not checked.
+    """
     reasons = []
     checks = (('rel_l2_pct', cfg['max_rel_l2_increase']),
               ('peak_distance_mm', cfg['max_peak_distance_increase_mm']))
     for name, margin in checks:
+        if margin is None:
+            continue
         new, old = candidate[name]['mean'], current[name]['mean']
         if new is None or not np.isfinite(new):
             reasons.append('{} of the candidate is not finite'.format(name))

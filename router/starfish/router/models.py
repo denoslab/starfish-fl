@@ -258,11 +258,18 @@ class StoredFile(models.Model):
 
 class ModelVersion(models.Model):
     """
-    An approved global model in the registry, SF-12.
+    A gate-approved global model in the registry, SF-12.
 
-    Only a model that passed the coordinator's evaluation gate is published.
-    The registry keeps its own copy of the file, so it outlives the run files.
+    Only a model that passed the coordinator's evaluation gate is published,
+    and it starts as pending. Labs see it only after the coordinator tests it
+    and approves it by hand. The registry keeps its own copy of the file, so
+    it outlives the run files.
     """
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
     version = models.CharField(max_length=40, unique=True)
     bucket_hz = models.IntegerField()
     sequence = models.IntegerField()
@@ -277,6 +284,11 @@ class ModelVersion(models.Model):
     round_seq = models.IntegerField()
     source_version = models.CharField(max_length=200)
     eval_report = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING)
+    reviewed_by = models.CharField(max_length=200, blank=True, default='')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.CharField(max_length=500, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

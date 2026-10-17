@@ -5,6 +5,7 @@ from uuid import UUID
 from django.contrib.auth.models import User, Group
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction, DatabaseError
+from django.db.models import Q
 from django.conf import settings
 from django.http import FileResponse
 from django.utils import timezone
@@ -647,7 +648,8 @@ class RunsActionViewSet(ViewSet):
                     if not mid_artifacts_file_name:
                         return Response("Error while saving mid-artifacts", status=status.HTTP_400_BAD_REQUEST)
                     else:
-                        run.middle_artifacts.append(url + mid_artifacts_file_name)
+                        run.middle_artifacts.append(
+                            url + mid_artifacts_file_name)
                 run.save()
                 return Response(status=status.HTTP_200_OK)
         return Response("No run found", status=status.HTTP_400_BAD_REQUEST)
@@ -752,16 +754,27 @@ class RunsActionViewSet(ViewSet):
 
 class ModelRegistryViewSet(ViewSet):
     """
-    Approved global models per frequency bucket, SF-12.
+    Gate-approved global models per frequency bucket, SF-12.
+
+    A published version is pending until the coordinator tests it and signs
+    it off by hand. Labs see only approved versions.
 
     - ``POST registry/`` publishes a run's aggregated artifact: run, task_seq,
       round_seq, bucket_hz, source_version, optional parent and eval_report.
-      Only the coordinator's run can publish.
+      Only the coordinator's run can publish. The version starts as pending.
     - ``GET registry/?bucket_hz=`` lists approved versions, newest first.
-    - ``GET registry/latest/?bucket_hz=`` gives the newest one.
+      ``status=pending``, ``rejected`` or ``any`` is for reviewers only.
+    - ``GET registry/latest/?bucket_hz=`` gives the newest one, same filter.
     - ``GET registry/file/?version=`` streams its file with ``X-Starfish-SHA256``.
+      A reviewer can also fetch a pending or rejected version, to test it.
+    - ``POST registry/approve/`` and ``registry/reject/`` with version and an
+      optional note sign off a pending version. A decision is final.
+
+    Reviewers are the superuser and, with site tokens, the site that
+    coordinates the version's project.
     """
     permission_classes = [permissions.IsAuthenticated]
+    STATUS_FILTERS = ('approved', 'pending', 'rejected', 'any')
 
     @staticmethod
     def _describe(mv):
@@ -769,7 +782,42 @@ class ModelRegistryViewSet(ViewSet):
                 'size': mv.size, 'parent': mv.parent.version if mv.parent else None,
                 'source_version': mv.source_version, 'project': mv.project_id,
                 'batch': mv.batch, 'task_seq': mv.task_seq, 'round_seq': mv.round_seq,
-                'eval_report': mv.eval_report, 'created_at': mv.created_at}
+                'eval_report': mv.eval_report, 'status': mv.status,
+                'reviewed_by': mv.reviewed_by, 'reviewed_at': mv.reviewed_at,
+                'review_note': mv.review_note, 'created_at': mv.created_at}
+
+    @staticmethod
+    def _coordinated_projects(site):
+        return ProjectParticipant.objects.filter(
+            site=site, role=ProjectParticipant.Role.COORDINATOR).values_list('project_id', flat=True)
+
+    def _can_review(self, request, mv):
+        site = request_site(request)
+        if site is None:
+            return request.user.is_superuser
+        return mv.project_id is not None and mv.project_id in set(self._coordinated_projects(site))
+
+    def _versions(self, request, bucket):
+        """The bucket's versions this request may see under its ``status`` filter."""
+        wanted = request.GET.get('status') or ModelVersion.Status.APPROVED
+        if wanted not in self.STATUS_FILTERS:
+            raise TransferError('status must be one of {}'.format(
+                ', '.join(self.STATUS_FILTERS)))
+        versions = ModelVersion.objects.filter(bucket_hz=bucket)
+        if wanted != 'any':
+            versions = versions.filter(status=wanted)
+        if wanted == ModelVersion.Status.APPROVED:
+            return versions
+        site = request_site(request)
+        if site is None:
+            if not request.user.is_superuser:
+                raise PermissionDenied(
+                    'only reviewers can see unapproved models')
+            return versions
+        projects = list(self._coordinated_projects(site))
+        if not projects:
+            raise PermissionDenied('only reviewers can see unapproved models')
+        return versions.filter(Q(status=ModelVersion.Status.APPROVED) | Q(project_id__in=projects))
 
     @staticmethod
     def _bucket(request):
@@ -780,18 +828,17 @@ class ModelRegistryViewSet(ViewSet):
 
     def list(self, request):
         try:
-            bucket = self._bucket(request)
+            versions = self._versions(request, self._bucket(request))
         except TransferError as e:
             return Response(str(e), status=e.status)
-        return Response([self._describe(mv) for mv in ModelVersion.objects.filter(bucket_hz=bucket)])
+        return Response([self._describe(mv) for mv in versions])
 
     @action(detail=False, methods=['GET'], url_path='latest')
     def latest(self, request):
         try:
-            bucket = self._bucket(request)
+            mv = self._versions(request, self._bucket(request)).first()
         except TransferError as e:
             return Response(str(e), status=e.status)
-        mv = ModelVersion.objects.filter(bucket_hz=bucket).first()
         if mv is None:
             return Response('no approved model for this bucket', status=status.HTTP_404_NOT_FOUND)
         return Response(self._describe(mv))
@@ -800,12 +847,43 @@ class ModelRegistryViewSet(ViewSet):
     def file(self, request):
         mv = ModelVersion.objects.filter(
             version=request.GET.get('version')).first()
-        if mv is None or not os.path.isfile(mv.path):
+        if mv is None or not os.path.isfile(mv.path) or (
+                mv.status != ModelVersion.Status.APPROVED and not self._can_review(request, mv)):
             return Response('model version not found', status=status.HTTP_404_NOT_FOUND)
         response = FileResponse(open(mv.path, 'rb'), as_attachment=True,
                                 filename='{}.safetensors'.format(mv.version))
         response['X-Starfish-SHA256'] = mv.sha256
         return response
+
+    @action(detail=False, methods=['POST'], url_path='approve')
+    def approve(self, request):
+        return self._sign_off(request, ModelVersion.Status.APPROVED)
+
+    @action(detail=False, methods=['POST'], url_path='reject')
+    def reject(self, request):
+        return self._sign_off(request, ModelVersion.Status.REJECTED)
+
+    def _sign_off(self, request, decision):
+        with transaction.atomic():
+            mv = ModelVersion.objects.select_for_update().filter(
+                version=request.data.get('version')).first()
+            if mv is None:
+                return Response('model version not found', status=status.HTTP_404_NOT_FOUND)
+            if not self._can_review(request, mv):
+                raise PermissionDenied(
+                    'only the project coordinator or the superuser can sign off a model')
+            if mv.status == decision:
+                return Response(self._describe(mv))
+            if mv.status != ModelVersion.Status.PENDING:
+                return Response('model version is already {}'.format(mv.status),
+                                status=status.HTTP_409_CONFLICT)
+            mv.status = decision
+            mv.reviewed_by = str(request.user.username)[:200]
+            mv.reviewed_at = timezone.now()
+            mv.review_note = str(request.data.get('note') or '')[:500]
+            mv.save(update_fields=['status', 'reviewed_by',
+                    'reviewed_at', 'review_note'])
+        return Response(self._describe(mv))
 
     def create(self, request):
         data = request.data

@@ -166,7 +166,7 @@ def download_all(run_id, file_type, folder, task_seq=None, round_seq=None, all_r
 
 def publish_model(run_id, task_seq, round_seq, bucket_hz, source_version, parent=None,
                   eval_report=None):
-    """Coordinator: register a round's aggregated artifact as an approved model version."""
+    """Coordinator: register a round's gate-approved artifact; it waits for manual sign-off."""
     router, auth = _router()
     body = {'run': run_id, 'task_seq': task_seq, 'round_seq': round_seq, 'bucket_hz': bucket_hz,
             'source_version': source_version, 'parent': parent, 'eval_report': eval_report or {}}
@@ -180,12 +180,20 @@ def publish_model(run_id, task_seq, round_seq, bucket_hz, source_version, parent
     return _with_retries('publish of {}'.format(source_version), attempt, _retries())
 
 
-def list_models(bucket_hz):
-    """Approved model versions for a bucket, newest first."""
+def _registry_params(bucket_hz, status):
+    params = {'bucket_hz': bucket_hz}
+    if status:
+        params['status'] = status
+    return params
+
+
+def list_models(bucket_hz, status=None):
+    """Model versions for a bucket, newest first; approved only unless a reviewer asks for ``status``."""
     router, auth = _router()
 
     def attempt():
-        response = requests.get('{}/registry/'.format(router), params={'bucket_hz': bucket_hz},
+        response = requests.get('{}/registry/'.format(router),
+                                params=_registry_params(bucket_hz, status),
                                 auth=auth, timeout=TIMEOUT)
         _check(response, 'registry listing')
         return response.json()
@@ -193,13 +201,14 @@ def list_models(bucket_hz):
     return _with_retries('registry listing', attempt, _retries())
 
 
-def latest_model(bucket_hz):
-    """The newest approved model version for a bucket, or None."""
+def latest_model(bucket_hz, status=None):
+    """The newest approved model version for a bucket, or None; ``status`` as in list_models."""
     router, auth = _router()
 
     def attempt():
         response = requests.get('{}/registry/latest/'.format(router),
-                                params={'bucket_hz': bucket_hz}, auth=auth, timeout=TIMEOUT)
+                                params=_registry_params(bucket_hz, status), auth=auth,
+                                timeout=TIMEOUT)
         if response.status_code == 404:
             return None
         _check(response, 'registry lookup')

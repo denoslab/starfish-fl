@@ -188,7 +188,8 @@ def test_runs_finish_and_logs_show_each_store(started_run):
     assert {"current", "candidate", "accepted"} <= set(reports[0])
     # The eval store carries region labels, D6: one sample per region class
     breakdown = reports[0]["region_breakdown"]
-    assert set(breakdown) == {"P7", "P8", "PO7", "TP7", "TP8", "other"}, breakdown
+    assert set(breakdown) == {"P7", "P8", "PO7",
+                              "TP7", "TP8", "other"}, breakdown
     assert all(r["candidate"]["n"] == 1 for r in breakdown.values()), breakdown
     assert "/babelbrain-store" not in combined
     assert "[Agent]" not in combined
@@ -208,16 +209,27 @@ def test_router_holds_one_global_model_per_round(started_run):
 
 
 def test_registry_serves_the_latest_approved_model(started_run):
-    """SF-12: list the approved 250 kHz models, download the latest, verify its checksum."""
+    """SF-12: the coordinator signs off this run's newest model, then a lab lists the
+    approved 250 kHz models, downloads the latest and verifies its checksum."""
     import hashlib
+    project_id, _ = started_run
     # The run's rounds are finished once the earlier tests pass
+    pending = api("GET", "/registry/",
+                  params={"bucket_hz": 250000, "status": "pending"})
+    assert pending.ok, pending.text
+    mine = [v for v in pending.json() if v["project"] == project_id]
+    assert mine, "no pending model: the gate rejected every round"
+    approved = api("POST", "/registry/approve/",
+                   json={"version": mine[0]["version"], "note": "e2e"})
+    assert approved.ok, approved.text
+    assert approved.json()["status"] == "approved"
     listing = api("GET", "/registry/", params={"bucket_hz": 250000})
     assert listing.ok, listing.text
     versions = listing.json()
-    assert versions, "no approved model: the gate rejected every round"
+    assert all(v["status"] == "approved" for v in versions)
     latest = api("GET", "/registry/latest/",
                  params={"bucket_hz": 250000}).json()
-    assert latest["version"] == versions[0]["version"]
+    assert latest["version"] == versions[0]["version"] == mine[0]["version"]
     response = requests.get(ROUTER + "/registry/file/", params={"version": latest["version"]},
                             auth=AUTH, timeout=60)
     assert response.ok

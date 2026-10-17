@@ -8,7 +8,7 @@ the demo stack. It talks to the router's API only, as the sites do: it
 creates a project that sites A, B and C join, starts a run, prints each
 site's state as it changes, and at the end shows per round what each site
 trained and what the evaluation gate decided, the region breakdown of the
-last round and the approved models in the registry.
+last round and the coordinator's sign-off in the registry.
 """
 
 import argparse
@@ -168,20 +168,26 @@ def report(runs, rounds, project_id):
                 fmt(row['current'], 'rel_l2_pct'), fmt(
                     row['candidate'], 'rel_l2_pct'),
                 fmt(row['current'], 'peak_distance_mm'), fmt(row['candidate'], 'peak_distance_mm')))
-    listing = api('GET', '/registry/', params={'bucket_hz': 250000})
-    models = [m for m in listing.json() if m.get(
+    listing = api('GET', '/registry/', params={'bucket_hz': 250000, 'status': 'pending'})
+    pending = [m for m in listing.json() if m.get(
         'project') == project_id] if listing.ok else []
-    if models:
-        print('\nModel registry: the approved 250 kHz models of this run, newest first')
-        for model in models:
-            print('  {}  from round {}, parent {}, sha256 {}...'.format(
-                model['version'], model['round_seq'], model.get(
-                    'parent') or 'none',
-                model['sha256'][:12]))
-        print('  A lab downloads the newest one from the registry; rejected rounds never get there.')
-    else:
+    if not pending:
         print('\nModel registry: nothing new; the gate rejected every round of this run')
-
+        return
+    print('\nModel registry: the gate passed these 250 kHz models; each waits for the coordinator, newest first')
+    for model in pending:
+        print('  {}  from round {}, parent {}, sha256 {}...'.format(
+            model['version'], model['round_seq'], model.get(
+                'parent') or 'none',
+            model['sha256'][:12]))
+    newest = pending[0]['version']
+    print('Labs see none of them yet. The coordinator tests {} by hand and signs it off; '
+          'the demo signs off as the coordinator.'.format(newest))
+    api('POST', '/registry/approve/', json={
+        'version': newest, 'note': 'demo sign-off'}).raise_for_status()
+    listing = api('GET', '/registry/latest/', params={'bucket_hz': 250000})
+    if listing.ok and listing.json().get('version') == newest:
+        print('  {} is now approved; a lab downloads it from the registry. The others stay pending.'.format(newest))
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
@@ -189,7 +195,7 @@ def main(argv=None):
     parser.add_argument('--epochs', type=int, default=4,
                         help='local epochs per round')
     parser.add_argument('--peak-margin-mm', type=float, default=None,
-                        help='gate margin on the mean peak distance; default 0, answer T8')
+                        help='opt-in gate margin on the mean peak distance; off by default, D8')
     args = parser.parse_args(argv)
     try:
         api('GET', '/sites/').raise_for_status()
@@ -214,9 +220,12 @@ def main(argv=None):
     project = project_by_name(name)
     print('Project "{}": site A coordinates, B and C take part. Model: the stand-in FNO, '
           '{} rounds of {} local epochs at 250 kHz.'.format(name, args.rounds, args.epochs))
-    margin = 0.0 if args.peak_margin_mm is None else args.peak_margin_mm
-    print('Gate: a new model must not raise the mean relative l2 error at all, or the mean peak '
-          'distance by more than {} mm.'.format(margin))
+    if args.peak_margin_mm is None:
+        print('Gate: a new model must not raise the mean relative l2 error at all. The other '
+              'metrics are reported and do not block.')
+    else:
+        print('Gate: a new model must not raise the mean relative l2 error at all, or the mean peak '
+              'distance by more than {} mm.'.format(args.peak_margin_mm))
     api('POST', '/runs', json={'project': project['id']}).raise_for_status()
     batch = project_by_name(name)['batch']
     print('Run started. No site uploads data; each reads its own BabelBrain sample store.\n')

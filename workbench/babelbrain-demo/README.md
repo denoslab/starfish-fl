@@ -29,6 +29,6 @@ make babelbrain-demo-tab      # optional: BabelBrain's FL tab on site B's store
 make babelbrain-demo-down     # stop; make babelbrain-demo-clean also deletes the data
 ```
 
-`make babelbrain-demo-run DEMO_ARGS="--peak-margin-mm 0.5 --rounds 4"` sets a gate margin and the number of rounds. The tab needs PySide6, numpy and h5py, for example BabelBrain's environment: `make babelbrain-demo-tab PYTHON=<that python>`.
+`make babelbrain-demo-run DEMO_ARGS="--peak-margin-mm 0.5 --rounds 4"` adds an opt-in peak-distance margin to the gate, which otherwise decides on relative l2 alone, and sets the number of rounds. The tab needs PySide6, numpy and h5py, for example BabelBrain's environment: `make babelbrain-demo-tab PYTHON=<that python>`.
 
 The stores live in `workbench/.babelbrain-demo/`, which git ignores. Each site mounts only its own store, read-only. The demo runs as its own compose project, `starfish-babelbrain-demo`, and `make babelbrain-demo-up` stops the SF-06 profile, which uses the same ports.

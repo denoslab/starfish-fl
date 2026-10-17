@@ -116,3 +116,7 @@ GitHub.sublime-settings
 
 # openclaw .env file
 workbench/config/openclaw.env
+
+# BabelBrain FL demo data, toy only
+workbench/.babelbrain-demo/
+

@@ -121,16 +121,30 @@ def scores(rel, peak):
 
 class DecideTest(TestCase):
 
-    def test_default_margins_block_any_regression(self):
+    def test_default_gate_decides_on_rel_l2_only(self):
         cfg = G.gate_config({})
+        self.assertIsNone(cfg['max_peak_distance_increase_mm'])
         self.assertTrue(G.decide(scores(10.0, 1.0), scores(10.0, 1.0), cfg)[0])
         self.assertTrue(G.decide(scores(9.0, 0.9), scores(10.0, 1.0), cfg)[0])
         accepted, reasons = G.decide(
             scores(10.01, 1.0), scores(10.0, 1.0), cfg)
         self.assertFalse(accepted)
         self.assertIn('rel_l2_pct', reasons[0])
-        self.assertFalse(G.decide(scores(10.0, 1.2),
-                         scores(10.0, 1.0), cfg)[0])
+
+    def test_peak_distance_does_not_block_by_default(self):
+        # The workbench demo case: relative l2 falls while peak distance rises.
+        cfg = G.gate_config({})
+        self.assertTrue(G.decide(scores(9.65, 1.81),
+                        scores(10.0, 0.80), cfg)[0])
+        accepted, reasons = G.decide(
+            scores(10.35, 0.80), scores(10.0, 1.81), cfg)
+        self.assertFalse(accepted)
+        self.assertEqual(len(reasons), 1)
+        self.assertIn('rel_l2_pct', reasons[0])
+
+    def test_non_finite_peak_distance_does_not_block_by_default(self):
+        self.assertTrue(G.decide(scores(9.0, float('nan')), scores(10.0, 1.0),
+                                 G.gate_config({}))[0])
 
     def test_margins_from_config(self):
         cfg = G.gate_config({'gate': {'max_rel_l2_increase': 0.5,
@@ -138,6 +152,15 @@ class DecideTest(TestCase):
         self.assertTrue(G.decide(scores(10.4, 1.2), scores(10.0, 1.0), cfg)[0])
         self.assertFalse(G.decide(scores(10.6, 1.2),
                          scores(10.0, 1.0), cfg)[0])
+
+    def test_peak_distance_check_is_opt_in(self):
+        cfg = G.gate_config({'gate': {'max_peak_distance_increase_mm': 0.0}})
+        accepted, reasons = G.decide(scores(10.0, 1.2), scores(10.0, 1.0), cfg)
+        self.assertFalse(accepted)
+        self.assertIn('peak_distance_mm', reasons[0])
+        self.assertFalse(G.decide(scores(10.0, 1.3),
+                         scores(10.0, 1.0),
+                         G.gate_config({'gate': {'max_peak_distance_increase_mm': 0.25}}))[0])
 
     def test_non_finite_candidate_is_rejected(self):
         self.assertFalse(G.decide(scores(float('nan'), 1.0), scores(10.0, 1.0),

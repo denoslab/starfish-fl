@@ -299,6 +299,8 @@ class RegistryPublishTest(GateInTaskTest):
                          'standin-250k-p7-b1-t1-r1'))
         self.assertEqual(kwargs['parent'], '250k-v0004')
         self.assertTrue(kwargs['eval_report']['accepted'])
+        # The parent is the newest registered version, pending or not
+        self.latest.assert_called_once_with(250000, status='any')
 
     def test_rejected_model_is_not_published(self):
         site = self.coordinator()

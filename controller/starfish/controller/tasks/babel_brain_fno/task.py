@@ -628,13 +628,18 @@ class BabelBrainFno(AbstractTask):
         return True
 
     def _publish(self, version):
-        """Register a gate-approved global model, SF-12. Failure is logged, not fatal."""
+        """Register a gate-approved global model, SF-12. Failure is logged, not fatal.
+
+        The version waits in the registry until the coordinator signs it off.
+        Its parent is the newest registered version whatever its status, since
+        training continued from it.
+        """
         try:
-            parent = transfer.latest_model(self.bucket_hz())
+            parent = transfer.latest_model(self.bucket_hz(), status='any')
             entry = transfer.publish_model(
                 self.run_id, self.cur_seq, self._round(), self.bucket_hz(), version,
                 parent=parent['version'] if parent else None, eval_report=self._eval_report)
-            self.logger.info('Published approved model {} for {} Hz, parent {}'.format(
+            self.logger.info('Published model {} for {} Hz, parent {}, pending sign-off'.format(
                 entry['version'], self.bucket_hz(), entry.get('parent')))
         except transfer.TransferFailed as e:
             self.logger.error(

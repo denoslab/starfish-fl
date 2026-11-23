@@ -38,6 +38,33 @@ services:
     volumes:
       - ../babelbrain-demo:/demo:ro
 
+  # Started by make babelbrain-demo-ui only. A live page at
+  # http://localhost:8090, the coordinator's console at site A. It reads site
+  # A's eval store for the field slices. For the centralized and the
+  # local-only baseline it also reads the train samples of all three site
+  # stores, which only works here with every store on one machine.
+  demo-ui:
+    image: starfish-controller-babelbrain
+    pull_policy: never
+    profiles: ["demo-ui"]
+    depends_on:
+      router:
+        condition: service_healthy
+    environment:
+      BABELBRAIN_FL_EVAL_STORE: /demo-stores/eval-a
+      DEMO_SITE_STORES: /demo-stores
+    entrypoint: ["python3", "/demo/demo_ui.py"]
+    ports:
+      - '127.0.0.1:8090:8090'
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8090)); s.close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ../babelbrain-demo:/demo:ro
+      - ../.babelbrain-demo/stores:/demo-stores:ro
+
   controller-a: &site-a
     volumes:
       - ../.babelbrain-demo/stores/site-a:/babelbrain-store:ro

@@ -9,6 +9,12 @@ Every run is a toy, see ``toy_physics.py``; only the crop is a stand-in.
 Eligibility, the store layout, group IDs, splits, counters, region labels
 and the manifest are BabelBrain's code, unchanged.
 
+The three labs' toy cases differ on purpose, in ``SITE_CASES``. Each lab
+draws skull thickness and tilt from its own range, no lab sees the whole
+mix, and the NeuroFUS test set takes four subjects from each range.
+Federation thus has something to add over training at one site alone. The
+ranges say nothing about real labs.
+
     <root>/runs/      toy Step 2 outputs, laid out like lab study folders
     <root>/stores/    site-a, site-b, site-c and eval-a, one store each
 """
@@ -40,6 +46,15 @@ LAB_TARGETS = ('LeftVIM_12_Aug_2026_194643',
                'RightSTN', 'LeftM1', 'RightAmygdala')
 HARD_REGIONS = ('P7', 'P8', 'PO7', 'TP7', 'TP8')
 STORES = ('site-a', 'site-b', 'site-c', 'eval-a')
+# Each lab's range of skull thickness in mm and of tilt. A has thin skulls and B thick ones,
+# tilted the same way, and C medium skulls tilted the other way. No lab thus sits at the
+# centre of the test mix. Offline runs of the stand-in chose this layout over three bands
+# along one axis, where the middle lab alone came close to the federated model.
+SITE_CASES = {
+    'a': ((1.5, 2.0), (-0.8, -0.4)),
+    'b': ((3.1, 3.6), (-0.8, -0.4)),
+    'c': ((2.3, 2.8), (0.4, 0.8)),
+}
 
 
 def heading(text):
@@ -47,20 +62,30 @@ def heading(text):
     print('-' * len(text))
 
 
-def lab_runs(folder, lab, n_subjects, rng, extra=()):
-    """Two targets per toy subject, plus ``extra`` (name suffix, subject) runs; return the paths."""
+def lab_runs(folder, lab, n_subjects, rng, extra=(), cases=((1.5, 3.0), (-0.3, 0.3))):
+    """Two targets per toy subject, plus ``extra`` (name suffix, subject) runs; return the paths.
+
+    ``cases`` gives the lab's range of skull thickness in mm and of tilt.
+    """
+    (skull_lo, skull_hi), (tilt_lo, tilt_hi) = cases
     runs = []
     for i in range(1, n_subjects + 1):
         subject = 'demo-{}-sub{:02d}'.format(lab, i)
         for target in rng.choice(LAB_TARGETS, 2, replace=False):
             prefix = '{}_{}_Single_250kHz_9PPW_'.format(subject, target)
             runs.append(toy.write_run(os.path.join(folder, subject), prefix, rng,
-                                      rng.uniform(1.5, 3.0), rng.uniform(-0.3, 0.3)))
+                                      rng.uniform(skull_lo, skull_hi), rng.uniform(tilt_lo, tilt_hi)))
     for tail, subject in extra:
         prefix = '{}_{}'.format(subject, tail)
         runs.append(toy.write_run(os.path.join(
             folder, subject), prefix, rng, 2.0, 0.0))
     return runs
+
+
+def show_cases(lab):
+    (skull_lo, skull_hi), (tilt_lo, tilt_hi) = SITE_CASES[lab]
+    print('Toy cases with skulls of {} to {} mm and a tilt of {:+} to {:+}'.format(
+        skull_lo, skull_hi, tilt_lo, tilt_hi))
 
 
 def show_store(root):
@@ -75,8 +100,9 @@ def show_store(root):
 
 def site_a(root, rng):
     heading('Site A, NeuroFUS, the coordinator: back-fill 14 past subjects')
+    show_cases('a')
     folder = os.path.join(root, 'runs', 'site-a')
-    lab_runs(folder, 'a', 14, rng)
+    lab_runs(folder, 'a', 14, rng, cases=SITE_CASES['a'])
     store = os.path.join(root, 'stores', 'site-a')
     print('$ python -m FederatedLearning.backfill <studies> --dry-run '
           '--babelbrain-version 0.8.2 --real-ct --default-options')
@@ -88,9 +114,10 @@ def site_a(root, rng):
 
 def site_b(root, rng):
     heading('Site B: 12 subjects exported live, as the Step 2 hook does after each run')
+    show_cases('b')
     folder = os.path.join(root, 'runs', 'site-b')
     store = os.path.join(root, 'stores', 'site-b')
-    runs = lab_runs(folder, 'b', 12, rng)
+    runs = lab_runs(folder, 'b', 12, rng, cases=SITE_CASES['b'])
     # Two runs the rules turn away: a ZTE pseudo-CT and a homogeneous medium
     zte = lab_runs(folder, 'b-zte', 0, rng,
                    [('RightSTN_Single_250kHz_9PPW_', 'demo-b-sub13')])
@@ -116,9 +143,11 @@ def site_b(root, rng):
 def site_c(root, rng):
     heading(
         'Site C: back-fill 12 past subjects, some runs not eligible, then run it again')
+    show_cases('c')
     folder = os.path.join(root, 'runs', 'site-c')
     lab_runs(folder, 'c', 12, rng, [('LeftVIM_Single_400kHz_9PPW_', 'demo-c-sub13'),
-                                    ('RightSTN_CTX_500_500kHz_6PPW_', 'demo-c-sub14')])
+                                    ('RightSTN_CTX_500_500kHz_6PPW_', 'demo-c-sub14')],
+             cases=SITE_CASES['c'])
     store = os.path.join(root, 'stores', 'site-c')
     print('$ python -m FederatedLearning.backfill <studies> --dry-run ...')
     backfill.run(folder, store_root=store, dry_run=True, args=STATED)
@@ -131,16 +160,14 @@ def site_c(root, rng):
 
 def eval_store(root, rng):
     heading('NeuroFUS test set: 12 held-out subjects with region labels, schema 1.1')
+    print('Four subjects from the range of cases of each lab, so no lab alone has seen the mix')
     folder = os.path.join(root, 'runs', 'neurofus-test')
     for i, target in enumerate(HARD_REGIONS * 2 + ('LeftVIM', 'RightSTN'), start=1):
         subject = 'demo-test-sub{:02d}'.format(i)
-        hard = target in HARD_REGIONS
-        # In the toy data, the hard targets sit behind a thicker, more oblique skull
-        skull_mm = rng.uniform(2.5, 3.5) if hard else rng.uniform(1.5, 3.0)
-        tilt = rng.choice([-1, 1]) * rng.uniform(0.4,
-                                                 0.6) if hard else rng.uniform(-0.3, 0.3)
+        (skull_lo, skull_hi), (tilt_lo, tilt_hi) = SITE_CASES['abc'[(i - 1) % 3]]
         toy.write_run(os.path.join(folder, subject),
-                      '{}_{}_Single_250kHz_9PPW_'.format(subject, target), rng, skull_mm, tilt)
+                      '{}_{}_Single_250kHz_9PPW_'.format(subject, target), rng,
+                      rng.uniform(skull_lo, skull_hi), rng.uniform(tilt_lo, tilt_hi))
     store = os.path.join(root, 'stores', 'eval-a')
     args = SimpleNamespace(**dict(vars(STATED), eval_regions=True))
     print('$ python -m FederatedLearning.backfill <test subjects> --dry-run ... --eval-regions')

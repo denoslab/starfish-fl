@@ -69,7 +69,8 @@ def runs_of(project_id, batch):
     response = api('GET', '/runs/detail/', params={
         'batch': batch, 'project': project_id, 'site_uid': SITES['A']})
     response.raise_for_status()
-    return response.json()['runs']
+    # The router leaves out the runs key while the batch has no runs
+    return response.json().get('runs', [])
 
 
 def site_of(run):
@@ -189,6 +190,32 @@ def report(runs, rounds, project_id):
     if listing.ok and listing.json().get('version') == newest:
         print('  {} is now approved; a lab downloads it from the registry. The others stay pending.'.format(newest))
 
+
+def create_project(rounds, epochs, peak_margin_mm=None):
+    """A new demo project that sites A, B and C join, with A as coordinator. Returns it."""
+    site_ids = {name: ensure_site(name, uid) for name, uid in SITES.items()}
+    name = 'BabelBrain FL demo {}'.format(time.strftime('%Y-%m-%d %H:%M:%S'))
+    tasks = [{'seq': 1, 'model': 'BabelBrainFno', 'config': {
+        'total_round': rounds, 'current_round': 1,
+        'data_source': {'type': 'babelbrain_store', 'bucket_hz': 250000},
+        'min_samples': 12, 'local_epochs': epochs}}]
+    if peak_margin_mm is not None:
+        tasks[0]['config']['gate'] = {'enabled': True,
+                                      'max_peak_distance_increase_mm': peak_margin_mm}
+    for site in ('A', 'B', 'C'):
+        response = api('POST', '/projects/', json={
+            'name': name, 'description': 'BabelBrain FL demo on toy data',
+            'site': site_ids[site], 'tasks': tasks})
+        response.raise_for_status()
+    return project_by_name(name)
+
+
+def start_run(project):
+    """Start a run of the project on every site. Returns the run's batch."""
+    api('POST', '/runs', json={'project': project['id']}).raise_for_status()
+    return project_by_name(project['name'])['batch']
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument('--rounds', type=int, default=3)
@@ -203,21 +230,8 @@ def main(argv=None):
         raise SystemExit(
             'Router not reachable, run make babelbrain-demo-up first: {}'.format(e))
 
-    site_ids = {name: ensure_site(name, uid) for name, uid in SITES.items()}
-    name = 'BabelBrain FL demo {}'.format(time.strftime('%Y-%m-%d %H:%M:%S'))
-    tasks = [{'seq': 1, 'model': 'BabelBrainFno', 'config': {
-        'total_round': args.rounds, 'current_round': 1,
-        'data_source': {'type': 'babelbrain_store', 'bucket_hz': 250000},
-        'min_samples': 12, 'local_epochs': args.epochs}}]
-    if args.peak_margin_mm is not None:
-        tasks[0]['config']['gate'] = {'enabled': True,
-                                      'max_peak_distance_increase_mm': args.peak_margin_mm}
-    for site in ('A', 'B', 'C'):
-        response = api('POST', '/projects/', json={
-            'name': name, 'description': 'BabelBrain FL demo on toy data',
-            'site': site_ids[site], 'tasks': tasks})
-        response.raise_for_status()
-    project = project_by_name(name)
+    project = create_project(args.rounds, args.epochs, args.peak_margin_mm)
+    name = project['name']
     print('Project "{}": site A coordinates, B and C take part. Model: the stand-in FNO, '
           '{} rounds of {} local epochs at 250 kHz.'.format(name, args.rounds, args.epochs))
     if args.peak_margin_mm is None:
@@ -226,8 +240,7 @@ def main(argv=None):
     else:
         print('Gate: a new model must not raise the mean relative l2 error at all, or the mean peak '
               'distance by more than {} mm.'.format(args.peak_margin_mm))
-    api('POST', '/runs', json={'project': project['id']}).raise_for_status()
-    batch = project_by_name(name)['batch']
+    batch = start_run(project)
     print('Run started. No site uploads data; each reads its own BabelBrain sample store.\n')
     runs = watch(project['id'], batch, args.rounds)
     report(runs, args.rounds, project['id'])

@@ -1,5 +1,5 @@
 .PHONY: build babelbrain-build babelbrain-up babelbrain-check babelbrain-e2e babelbrain-transfer babelbrain-partial babelbrain-tokens babelbrain-down babelbrain-clean babelbrain-logs \
-	babelbrain-demo-check-fork babelbrain-demo-stores babelbrain-demo-up babelbrain-demo-run babelbrain-demo-tab babelbrain-demo-down babelbrain-demo-clean
+	babelbrain-demo-check-fork babelbrain-demo-stores babelbrain-demo-up babelbrain-demo-run babelbrain-demo-ui babelbrain-demo-tab babelbrain-demo-down babelbrain-demo-clean
 
 COMPOSE = docker-compose
 # Paths updated for mono repo structure
@@ -31,7 +31,7 @@ babelbrain-build:
 	$(BB_COMPOSE) build
 
 babelbrain-up: babelbrain-build
-	-@$(DEMO_COMPOSE) down 2>/dev/null
+	-@$(DEMO_COMPOSE) $(DEMO_PROFILES) down 2>/dev/null
 	$(BB_COMPOSE) up -d --wait
 
 # REDIS_DB=15 because importing starfish clears the run cache in its Redis DB.
@@ -77,6 +77,8 @@ babelbrain-clean:
 BABELBRAIN_DIR ?= $(abspath ../../BabelBrain)
 export BABELBRAIN_DIR
 DEMO_COMPOSE = docker compose -p starfish-babelbrain-demo -f compose/babelbrain.yaml -f compose/babelbrain-demo.yaml
+# down skips a service whose profile is off, which would leave the page running
+DEMO_PROFILES = --profile demo-ui
 PYTHON ?= python3
 
 babelbrain-demo-check-fork:
@@ -97,14 +99,20 @@ babelbrain-demo-up: babelbrain-demo-check-fork babelbrain-build
 babelbrain-demo-run:
 	$(DEMO_COMPOSE) run --rm demo-run $(DEMO_ARGS)
 
+# Step 3 on a page at http://localhost:8090, which starts a run, follows it live and approves
+# its models as the coordinator. Needs babelbrain-demo-up, and babelbrain-demo-down stops it too
+babelbrain-demo-ui:
+	$(DEMO_COMPOSE) up -d --no-deps --force-recreate --wait demo-ui
+	@echo "Demo page at http://localhost:8090"
+
 # Optional: BabelBrain's FL tab on site B's store; needs PySide6, numpy and h5py, as in BabelBrain's environment
 babelbrain-demo-tab: babelbrain-demo-check-fork
 	$(PYTHON) babelbrain-demo/show_fl_tab.py --store .babelbrain-demo/stores/site-b
 
 babelbrain-demo-down:
-	$(DEMO_COMPOSE) down
+	$(DEMO_COMPOSE) $(DEMO_PROFILES) down
 
 # Also deletes the demo stores and all run data
 babelbrain-demo-clean:
-	$(DEMO_COMPOSE) down -v
+	$(DEMO_COMPOSE) $(DEMO_PROFILES) down -v
 	rm -rf .babelbrain-demo

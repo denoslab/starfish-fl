@@ -2,6 +2,7 @@
 
 import contextlib
 import io
+import logging
 import os
 import shutil
 import stat
@@ -160,6 +161,48 @@ class LockTest(unittest.TestCase):
             self.assertIsNone(cli.running_pid(home))
         finally:
             shutil.rmtree(home, ignore_errors=True)
+
+
+def messages(lines):
+    return [line.split(': ', 1)[1] for line in lines]
+
+
+class LoggingTest(unittest.TestCase):
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        root = logging.getLogger()
+        self.before = list(root.handlers)
+        self.addCleanup(shutil.rmtree, self.home, True)
+        self.addCleanup(root.setLevel, root.level)
+
+    def tearDown(self):
+        root = logging.getLogger()
+        for handler in list(root.handlers):
+            if handler not in self.before:
+                root.removeHandler(handler)
+                handler.close()
+
+    def task_lines(self, verbose):
+        screen = io.StringIO()
+        with contextlib.redirect_stdout(screen):
+            log_file = cli.setup_logging(self.home, verbose)
+        # A task logger keeps its own level, as the controller's tasks set it
+        task = logging.getLogger('logger-test-{}'.format(verbose))
+        task.setLevel(logging.DEBUG)
+        task.debug('Init logger for run 1')
+        task.info('Round 1 starts')
+        return messages(screen.getvalue().splitlines()), messages(log_file.read_text().splitlines())
+
+    def test_task_debug_lines_stay_out_without_verbose(self):
+        screen, log_file = self.task_lines(verbose=False)
+        self.assertEqual(screen, ['Round 1 starts'])
+        self.assertEqual(log_file, ['Round 1 starts'])
+
+    def test_verbose_shows_task_debug_lines(self):
+        screen, log_file = self.task_lines(verbose=True)
+        self.assertEqual(screen, ['Init logger for run 1', 'Round 1 starts'])
+        self.assertEqual(log_file, ['Init logger for run 1', 'Round 1 starts'])
 
 
 if __name__ == '__main__':

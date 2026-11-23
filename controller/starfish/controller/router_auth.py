@@ -8,11 +8,13 @@ as before.
 
 import logging
 import os
+import threading
 
 import requests
 
 logger = logging.getLogger(__name__)
 _warned_http = False
+_warn_lock = threading.Lock()
 
 
 class TokenAuth(requests.auth.AuthBase):
@@ -31,8 +33,11 @@ def router_auth():
     token = os.getenv('ROUTER_TOKEN')
     if token:
         if not _warned_http and os.getenv('ROUTER_URL', '').startswith('http://'):
-            logger.warning('ROUTER_TOKEN is sent over plain HTTP; use an https ROUTER_URL outside '
-                           'a local workbench')
-            _warned_http = True
+            # The timer threads of a native site ask at the same moment
+            with _warn_lock:
+                if not _warned_http:
+                    _warned_http = True
+                    logger.warning('ROUTER_TOKEN is sent over plain HTTP; use an https ROUTER_URL '
+                                   'outside a local workbench')
         return TokenAuth(token)
     return (os.getenv('ROUTER_USERNAME'), os.getenv('ROUTER_PASSWORD'))

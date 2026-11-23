@@ -195,10 +195,13 @@ def setup_logging(home, verbose):
     to_file = logging.handlers.RotatingFileHandler(folder / 'starfish-site.log',
                                                    maxBytes=10 * 2 ** 20, backupCount=5)
     to_screen = logging.StreamHandler(sys.stdout)
+    level = logging.DEBUG if verbose else logging.INFO
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG if verbose else logging.INFO)
+    root.setLevel(level)
     for handler in (to_file, to_screen):
         handler.setFormatter(formatter)
+        # A task logger keeps its own DEBUG level, and its records skip the root's level
+        handler.setLevel(level)
         root.addHandler(handler)
     for noisy in ('urllib3', 'matplotlib', 'h5py'):
         logging.getLogger(noisy).setLevel(logging.WARNING)

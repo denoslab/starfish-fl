@@ -32,7 +32,8 @@ def send_status(status):
         response = requests.post('{0}/sites/heartbeat/'.format(router_url),
                                  headers={'Content-Type': 'application/json'},
                                  auth=router_auth(),
-                                 data=json.dumps(data))
+                                 data=json.dumps(data),
+                                 timeout=10)
         if not response or not response.ok:
             logger.debug(
                 'Failed to report status {}  of site {}'.format(status, site_uid))

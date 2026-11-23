@@ -4,14 +4,22 @@ The model package, ``tfus_fno`` or the stand-in, supplies the network, the
 input assembly and the loss. This module only runs the loop around them.
 """
 
+import os
 import resource
 import sys
 import time
 
 
-def pick_device(name='auto'):
-    """``auto`` means CUDA, then Apple MPS, then CPU."""
+# A site's own device, for example cpu on a Mac whose MPS cannot run the model.
+# When set it wins over the device in the project's task config.
+DEVICE_ENV = 'BABELBRAIN_FL_DEVICE'
+
+
+def pick_device(name='auto', environ=None):
+    """``auto`` means CUDA, then Apple MPS, then CPU. ``BABELBRAIN_FL_DEVICE`` wins over ``name``."""
     import torch
+    environ = os.environ if environ is None else environ
+    name = (environ.get(DEVICE_ENV) or '').strip() or name
     if name and name != 'auto':
         return torch.device(name)
     if torch.cuda.is_available():
@@ -106,7 +114,11 @@ def train_round(model, loader, pkg, device, cfg, stage, logger):
     anchors = [p.detach().clone() for p in params] if mu > 0 else None
     optimizer = torch.optim.AdamW(params, lr=float(cfg.get('lr', 1e-3)),
                                   weight_decay=float(cfg.get('weight_decay', 0.0)))
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp) if use_amp else None
+    scaler = None
+    if use_amp:
+        # torch.amp.GradScaler exists from torch 2.3, and newer releases deprecate the cuda one
+        scaler = (torch.amp.GradScaler('cuda') if hasattr(torch.amp, 'GradScaler')
+                  else torch.cuda.amp.GradScaler())
     if device.type == 'cuda':
         torch.cuda.reset_peak_memory_stats(device)
     model.train()

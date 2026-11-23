@@ -1,0 +1,39 @@
+# Test router for e2e_native.sh, on 127.0.0.1:18100, apart from the workbench stacks
+name: starfish-site-e2e
+services:
+  postgres:
+    image: postgres:12.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: UCalgary123
+      POSTGRES_DB: starfish-router
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starfish-router"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  router:
+    image: starfish-router
+    pull_policy: never
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:18100:8000'
+    env_file:
+      - ../../workbench/config/router.env
+    environment:
+      DJANGO_SUPERUSER_PASSWORD: "1234"
+      STARFISH_DISABLE_AGENTS: "1"
+    command: >
+      bash -c "
+        poetry run python3 manage.py migrate --no-input &&
+        (poetry run python3 manage.py createsuperuser --noinput --username admin --email admin@site-e2e.local 2>/dev/null || true) &&
+        poetry run python3 manage.py runserver 0.0.0.0:8000
+      "
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8000)); s.close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s

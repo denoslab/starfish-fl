@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>BabelBrain FL Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: run control, summary tiles, sites, gate, training, fields, regions, registry */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #101318;
+  --ink-2: #4a5160;
+  --ink-3: #666e80;
+  --rule: #dfe3ea;
+  --grid: #eceff4;
+  --accent: #2a78d6;
+  --accent-fill: #1f63b8;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  --good: #0a7a3a; --good-bg: #e3f4ea;
+  --pending: #8a5a00; --pending-bg: #fbf0d9;
+  --warn: #9a3d12; --warn-bg: #fde8de;
+  --bad: #a32828; --bad-bg: #fbe3e1;
+  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --surface: #1a1d22; --ink: #eef0f3; --ink-2: #b6bcc8; --ink-3: #8a91a0;
+    --rule: #2c313a; --grid: #242830; --accent: #3987e5; --accent-fill: #2a6bc0;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good: #5fd08f; --good-bg: #173325; --pending: #f0c060; --pending-bg: #3a2e12;
+    --warn: #f2a07c; --warn-bg: #3b2118; --bad: #f08080; --bad-bg: #3d1c1c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --surface: #1a1d22; --ink: #eef0f3; --ink-2: #b6bcc8; --ink-3: #8a91a0;
+  --rule: #2c313a; --grid: #242830; --accent: #3987e5; --accent-fill: #2a6bc0;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --good: #5fd08f; --good-bg: #173325; --pending: #f0c060; --pending-bg: #3a2e12;
+  --warn: #f2a07c; --warn-bg: #3b2118; --bad: #f08080; --bad-bg: #3d1c1c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+main { max-width: 1080px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 4vw, 36px); font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 21px; font-weight: 600; }
+h3 { font-size: 14px; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.lede { color: var(--ink-2); }
+.mono, td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 10px; }
+.title-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.conn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.conn i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.conn.ok i { background: var(--good); }
+.conn.down i { background: var(--bad); }
+section { display: grid; gap: 16px; min-width: 0; }
+.section-head { display: grid; gap: 6px; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; min-width: 0; }
+.run-panel { display: grid; gap: 16px; }
+.run-state { display: grid; gap: 4px; }
+.run-state h2 { font-size: 19px; }
+.run-state p { color: var(--ink-2); font-size: 14px; }
+.start-form { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; padding-top: 14px; border-top: 1px solid var(--rule); }
+.start-form label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.start-form input { font: 14px var(--font-mono); width: 104px; padding: 7px 9px; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.start-form input:disabled { opacity: 0.55; }
+.btn { font: 600 14px var(--font-body); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.btn.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: #fff; }
+.btn.small { font-size: 13px; padding: 4px 12px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn:focus-visible, .start-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg { font-size: 13px; color: var(--ink-2); min-height: 1.3em; }
+.msg.error { color: var(--bad); }
+.banner { border: 1px solid var(--bad); background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tile .label { font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+.tile .value { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.tile .from { font-size: 13px; color: var(--ink-2); }
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 12px; align-items: start; }
+.split.stacked { grid-template-columns: minmax(0, 1fr); }
+.split.stacked .events { max-height: 220px; }
+.multiples { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.multiples .panel { padding: 14px 14px 8px; display: grid; gap: 6px; align-content: start; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.good { color: var(--good); background: var(--good-bg); }
+.chip.pending { color: var(--pending); background: var(--pending-bg); }
+.chip.warn { color: var(--warn); background: var(--warn-bg); }
+.chip.bad { color: var(--bad); background: var(--bad-bg); }
+.chip.live { color: var(--ink-2); background: var(--grid); }
+.chip.live i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
+.chip.idle { color: var(--ink-3); background: transparent; padding-left: 0; font-weight: 500; }
+.chip.plain { color: var(--ink-2); background: var(--grid); }
+.baseline-rows { display: grid; gap: 8px; }
+.swatch-line { display: inline-block; flex: none; vertical-align: middle; }
+.chip svg { width: 11px; height: 11px; flex: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .chip.live i { animation: none; } }
+.rounds-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); }
+.rounds-row .verdict { display: inline-flex; gap: 6px; align-items: center; margin-right: 6px; }
+svg text { fill: var(--ink-2); font-family: var(--font-body); font-size: 11px; }
+svg .axis { stroke: var(--rule); }
+svg .gridline { stroke: var(--grid); }
+svg .hit:focus { outline: none; }
+svg .hit:focus-visible { stroke: var(--accent); stroke-width: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+#loss-chart { overflow-x: auto; }
+#loss-chart svg { min-width: 640px; display: block; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend .ring { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--warn); background: transparent; }
+.legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; border-right: 1px solid var(--rule); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-fill); color: #fff; }
+.seg button:disabled { color: var(--ink-3); cursor: progress; }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ctl-label { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-right: 8px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; transition: opacity 0.2s; }
+.fields.stale { opacity: 0.45; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field canvas { width: 100%; aspect-ratio: 2 / 1; image-rendering: pixelated; border-radius: 4px; display: block; cursor: crosshair; }
+.field .cap { display: grid; gap: 0; }
+.field .unit { font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.cbar { display: grid; gap: 2px; }
+.cbar canvas { width: 100%; height: 8px; aspect-ratio: auto; border-radius: 2px; cursor: default; }
+.cbar .ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); }
+.sample-stat { font-size: 14px; color: var(--ink-2); }
+.sample-stat b { color: var(--ink); font-weight: 600; font-family: var(--font-mono); }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+td.num, th.num { text-align: right; }
+tr:last-child td { border-bottom: 0; }
+.site-table td { vertical-align: top; white-space: normal; }
+.site-table td:first-child { min-width: 150px; }
+.site-name { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.cell { display: grid; gap: 4px; justify-items: start; min-width: 140px; }
+.sub { font-size: 12px; color: var(--ink-2); }
+.muted { font-size: 13px; color: var(--ink-3); }
+.done { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink); }
+.done svg { width: 11px; height: 11px; color: var(--good); }
+.events { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; max-height: 340px; overflow-y: auto; font-size: 13px; }
+.events li { display: grid; grid-template-columns: auto 1fr; gap: 10px; color: var(--ink-2); align-items: baseline; }
+.events time { font-family: var(--font-mono); color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.events .ic { display: inline-block; width: 1.1em; font-weight: 700; }
+.events .good .ic { color: var(--good); }
+.events .warn .ic { color: var(--warn); }
+.events .bad .ic { color: var(--bad); }
+.events .info .ic { color: var(--ink-3); }
+.better { color: var(--good); }
+.worse { color: var(--warn); }
+.note { font-size: 13px; color: var(--ink-3); max-width: 80ch; }
+.empty { font-size: 14px; color: var(--ink-3); padding: 18px 4px; }
+details summary { cursor: pointer; font-size: 13px; color: var(--ink-2); }
+details[open] summary { margin-bottom: 8px; }
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 6px 9px; border-radius: 6px; font-family: var(--font-mono); z-index: 20; white-space: nowrap; }
+@media (max-width: 860px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .multiples { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Starfish-FL · toy data</div>
+    <div class="title-row">
+      <h1>BabelBrain FL demo</h1>
+      <span class="conn" id="conn"><i></i><span>Connecting</span></span>
+    </div>
+    <p class="lede" id="lede">The coordinator's console at site A. Reading the latest demo run from the router.</p>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <section class="panel run-panel" aria-labelledby="run-title">
+    <div class="run-state">
+      <h2 id="run-title">Reading the router</h2>
+      <p id="run-sub"></p>
+    </div>
+    <form class="start-form" id="start-form">
+      <label>Rounds <input type="number" id="f-rounds" min="1" max="10" step="1" value="3" required></label>
+      <label>Local epochs <input type="number" id="f-epochs" min="1" max="20" step="1" value="4" required></label>
+      <label>Peak margin, mm <input type="number" id="f-margin" min="0" max="100" step="0.1" placeholder="off"></label>
+      <button type="submit" class="btn primary" id="start-btn" disabled>Start run</button>
+    </form>
+    <p class="msg" id="start-msg" role="status" aria-live="polite"></p>
+  </section>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <div class="section-head">
+      <h2>Sites, round by round</h2>
+      <p class="lede">Each site trains on its own BabelBrain sample store and sends only its weight update. Site A coordinates, averages the updates and runs the gate. The toy stores differ on purpose. Each site sees its own range of skull thickness and tilt, and the test set mixes all three.</p>
+    </div>
+    <div class="split" id="sites-split">
+      <div class="panel table-wrap"><table class="site-table" id="site-table"></table></div>
+      <div class="panel" style="display:grid;gap:10px">
+        <h3>Activity</h3>
+        <ol class="events" id="events"></ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Evaluation gate at site A</h2>
+      <p class="lede" id="gate-lede"></p>
+    </div>
+    <div class="rounds-row" id="verdicts"></div>
+    <div class="baseline-rows" id="baseline-row" hidden></div>
+    <div class="multiples" id="multiples"></div>
+    <div class="legend" id="gate-legend" hidden></div>
+    <details><summary>Show the gate numbers as a table</summary><div class="table-wrap"><table id="gate-table"></table></div></details>
+    <details id="compare-details" hidden><summary>Show federated and baseline scores as a table</summary><div class="table-wrap"><table id="compare-table"></table></div></details>
+    <details id="local-details" hidden><summary>Show the local-only scores per site as a table</summary><div class="table-wrap"><table id="local-table"></table></div></details>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Local training at each site</h2>
+      <p class="lede" id="loss-lede">Every round restarts from the global model the gate kept. A site's losses appear once it finishes training the round.</p>
+    </div>
+    <div class="panel" style="display:grid;gap:8px">
+      <div class="legend" id="loss-legend"></div>
+      <div id="loss-chart"></div>
+      <details><summary>Show the losses as a table</summary><div class="table-wrap"><table id="loss-table"></table></div></details>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Fields on held-out samples</h2>
+      <p class="lede">Slices along the beam through the brain peak, from site A's held-out NeuroFUS samples. The transducer sits at the left edge and the beam runs to the right. The outline marks the brain mask. Each global model joins the list once the gate passes it.</p>
+    </div>
+    <div class="controls">
+      <div><span class="ctl-label">Sample</span><span class="seg" id="sample-seg"></span></div>
+      <div><span class="ctl-label">Model</span><span class="seg" id="model-seg"></span></div>
+    </div>
+    <div class="panel" style="display:grid;gap:14px">
+      <p class="sample-stat" id="sample-stat">Loading the held-out samples.</p>
+      <div class="fields" id="fields"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2 id="region-title">Error by target region</h2>
+      <p class="lede">From the region labels of the NeuroFUS test set. Each region has only a few samples, which makes these numbers noisy.</p>
+    </div>
+    <div class="panel table-wrap" id="region-wrap"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Model registry</h2>
+      <p class="lede">Every model the gate passed waits here for the coordinator. Labs see a model only after the coordinator approves it, and an approval is final.</p>
+    </div>
+    <div class="panel table-wrap" id="registry-wrap"></div>
+    <p class="msg" id="registry-msg" role="status" aria-live="polite"></p>
+  </section>
+
+  <p class="note">Toy Step 2 runs, the toy crop of the demo and the stand-in FNO stand in for real simulations, Tayeb's crop and tFUS-FNO. The numbers show how the FL steps work and say nothing about real skulls. Each site's toy cases come from its own range of skull thickness and tilt, chosen so that no site alone sees the mix of the test set. While the demo stack runs, the site pages are at localhost:8001/controller/ for A, 8002 for B and 8003 for C.</p>
+</main>
+<div id="tip" hidden></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const isDark = () => css('--bg').toLowerCase() === '#111317';
+const SVGNS = 'http://www.w3.org/2000/svg';
+const tip = $('tip');
+const POLL_MS = 1500;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (v, d = 2) => v == null || !isFinite(v) ? 'n/a' : Number(v).toFixed(d);
+const fmtTime = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+// A time of day, with the date in front when it is not today
+function fmtWhen(ms) {
+  const d = new Date(ms);
+  if (d.toDateString() === new Date().toDateString()) return fmtTime(ms);
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + fmtTime(ms);
+}
+function fmtDur(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+function showTip(e, html) {
+  tip.innerHTML = html; tip.hidden = false;
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  const y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function showTipAt(node, html) { const b = node.getBoundingClientRect(); showTip({ clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 }, html); }
+function hideTip() { tip.hidden = true; }
+addEventListener('scroll', hideTip, { passive: true });
+function el(tag, attrs, parent) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+const ICON = {
+  check: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5l2.5 2.5L10 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  cross: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  clock: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 3.5V6l1.8 1.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+};
+const METRICS = [
+  { key: 'rel_l2_pct', label: 'Relative l2 error', unit: '%', d: 1, lower: true },
+  { key: 'peak_distance_mm', label: 'Peak distance', unit: 'mm', d: 2, lower: true },
+  { key: 'ssim', label: 'SSIM', unit: '', d: 2, lower: false },
+];
+const REGION_ORDER = ['P7', 'P8', 'PO7', 'TP7', 'TP8', 'other', 'unlabelled'];
+
+let S = null, F = null, fieldsRev = null, lastOk = 0, serverDown = false, fieldsLoading = false;
+let curSample = 0, pinnedModel = null;
+const memo = {};
+function changed(key, value) { const s = JSON.stringify(value); if (memo[key] === s) return false; memo[key] = s; return true; }
+
+// ── derived values ─────────────────────────────────────────────────────────
+const total = () => (S && S.config && S.config.total_round) || 0;
+const epochsPerRound = () => (S && S.config && S.config.local_epochs) || 1;
+const gates = () => (S ? S.rounds.map(r => r.gate) : []);
+const coordinator = () => S && S.sites.find(s => s.role === 'coordinator');
+const siteColors = () => ({ A: css('--s1'), B: css('--s2'), C: css('--s3') });
+function trainSamples(key) {
+  for (const r of (S ? S.rounds : [])) { const x = r.sites[key]; if (x && x.train_samples != null) return x.train_samples; }
+  return null;
+}
+function runInfo() {
+  if (!S || !S.project) return { state: 'none' };
+  if (!S.sites.length) return { state: 'norun' };
+  const created = Math.min(...S.sites.map(s => Date.parse(s.created_at)));
+  const updated = Math.max(...S.sites.map(s => Date.parse(s.updated_at)));
+  const c = coordinator();
+  const rnd = c && c.round ? c.round : Math.max(...S.sites.map(s => s.round || 0));
+  const failed = S.sites.filter(s => s.status === 'Failed');
+  if (S.active) return { state: 'active', round: rnd, created };
+  if (failed.length) return { state: 'failed', round: Math.min(...failed.map(s => s.round || 0)), sites: failed, created, ended: updated };
+  return { state: 'success', created, ended: updated };
+}
+// The global model's score after each gated round, and the candidates the gate turned down
+function gateSeries(key) {
+  const g = gates(), kept = [], rejected = [];
+  if (!g[0] || !g[0].current) return { kept, rejected };
+  kept.push(g[0].current[key]);
+  for (let i = 0; i < g.length && g[i]; i++) {
+    kept.push((g[i].accepted ? g[i].candidate : g[i].current)[key]);
+    if (!g[i].accepted) rejected.push({ i: i + 1, v: g[i].candidate[key] });
+  }
+  return { kept, rejected };
+}
+// True when the run's gate scored another test set than the stores on disk hold. The
+// baselines always train on the current stores, so they would not match that run
+function storesChanged() {
+  const d = S && S.fields && S.fields.eval_digest;
+  return !!d && gates().some(g => g && g.store_digest && g.store_digest !== d);
+}
+const baseline = () => (S && S.baseline && !storesChanged()) ? S.baseline : null;
+// The centralized baseline's score after each round, start included, as far as it has trained
+function baseSeries(key) {
+  const b = baseline();
+  return b && b.scores ? b.scores.map(x => x[key]) : [];
+}
+const localOnly = () => (S && S.local && !storesChanged()) ? S.local : null;
+// The local-only baseline's simple average over sites after each round, and each site's own
+function localSeries(key) {
+  const l = localOnly();
+  return l && l.scores ? l.scores.map(x => x[key]) : [];
+}
+function localSiteSeries(key) {
+  const l = localOnly(), out = {};
+  for (const [site, rows] of Object.entries((l && l.site_scores) || {})) out[site] = rows.map(x => x[key]);
+  return out;
+}
+
+// ── header, run panel, tiles ───────────────────────────────────────────────
+function renderConn() {
+  const c = $('conn'), label = c.querySelector('span');
+  if (serverDown) { c.className = 'conn down'; label.textContent = 'Page server unreachable'; return; }
+  if (S && S.error) { c.className = 'conn down'; label.textContent = 'Router unreachable'; return; }
+  if (S && S.ready) { c.className = 'conn ok'; label.textContent = 'Live, updated ' + fmtTime(lastOk); return; }
+  c.className = 'conn'; label.textContent = 'Connecting';
+}
+function renderBanner() {
+  const b = $('banner');
+  const text = serverDown ? 'The page server stopped answering. Start it again with make babelbrain-demo-ui.' : (S && S.error) || '';
+  b.hidden = !text; b.textContent = text;
+}
+function renderHead() {
+  const lede = $('lede');
+  if (!S.project) { lede.textContent = "The coordinator's console at site A. No demo project on the router so far. Start a run below."; return; }
+  const n = total(), e = epochsPerRound(), khz = Math.round((S.config.bucket_hz || 250000) / 1000);
+  const counts = ['A', 'B', 'C'].map(trainSamples);
+  const who = counts.every(x => x != null)
+    ? `Site A trains on ${counts[0]} samples, B on ${counts[1]} and C on ${counts[2]}.`
+    : 'Sites A, B and C take part.';
+  lede.textContent = `The coordinator's console at site A for ${S.project.name}. ${who} They train the stand-in FNO for ${n} round${n === 1 ? '' : 's'} of ${e} local epoch${e === 1 ? '' : 's'} at ${khz} kHz. No sample leaves its site.`;
+}
+function renderRun() {
+  const info = runInfo(), title = $('run-title'), sub = $('run-sub');
+  const now = Date.now();
+  if (info.state === 'none') { title.textContent = 'No demo run so far'; sub.textContent = 'Start creates a project that sites A, B and C join, with A as coordinator, and starts its first run.'; }
+  else if (info.state === 'norun') { title.textContent = 'This project has no run'; sub.textContent = 'Starting it failed. Check that the three sites are connected, then start a new run.'; }
+  else if (info.state === 'active') {
+    title.textContent = `Round ${info.round || 1} of ${total()} in progress`;
+    sub.textContent = `Started at ${fmtWhen(info.created)}, running for ${fmtDur(now - info.created)}.`;
+  } else if (info.state === 'failed') {
+    title.textContent = `Run failed in round ${info.round}`;
+    const errs = info.sites.map(s => { const x = (S.rounds[(s.round || 1) - 1] || { sites: {} }).sites[s.key]; return x && x.error ? `Site ${s.key} logged ${x.error}` : `Site ${s.key} failed`; });
+    sub.textContent = errs.join('. ') + '.';
+  } else {
+    const passed = gates().filter(g => g && g.accepted).length;
+    title.textContent = 'Run finished';
+    sub.textContent = `${total()} rounds in ${fmtDur(info.ended - info.created)}, ended at ${fmtWhen(info.ended)}. The gate passed ${passed} of ${total()} rounds.`;
+  }
+  const busy = info.state === 'active' || !S || !S.ready || !!(S && S.error) || serverDown;
+  ['f-rounds', 'f-epochs', 'f-margin'].forEach(id => { $(id).disabled = info.state === 'active'; });
+  $('start-btn').disabled = busy || startPending;
+  $('start-btn').title = info.state === 'active' ? 'A run is in progress' : '';
+}
+function renderTiles() {
+  const host = $('tiles');
+  const html = METRICS.map(m => {
+    const s = gateSeries(m.key).kept;
+    const unit = m.unit ? ' ' + m.unit : '';
+    const c = baseSeries(m.key), b = baseline();
+    const lo = localSeries(m.key), l = localOnly();
+    const cen = (c.length > 1 ? `<div class="from">centralized baseline ${fmt(c[c.length - 1], m.d)}${unit}${b.status === 'done' ? '' : ' so far'}</div>` : '')
+      + (lo.length > 1 ? `<div class="from">local only, average ${fmt(lo[lo.length - 1], m.d)}${unit}${l.status === 'done' ? '' : ' so far'}</div>` : '');
+    if (!s.length) return `<div class="tile"><div class="label">${m.label}</div><div class="value">n/a</div><div class="from">after the first gate</div>${cen}</div>`;
+    return `<div class="tile"><div class="label">${m.label}</div><div class="value">${fmt(s[s.length - 1], m.d)}${unit}</div><div class="from">from ${fmt(s[0], m.d)}${unit} at the start</div>${cen}</div>`;
+  });
+  const reg = S.registry || [];
+  const approved = [...reg].reverse().find(m => m.status === 'approved');
+  const pending = reg.filter(m => m.status === 'pending').length;
+  html.push(`<div class="tile"><div class="label">Approved model</div><div class="value">${approved ? esc(approved.version) : 'none'}</div><div class="from">${reg.length} passed the gate, ${pending} ${pending === 1 ? 'waits' : 'wait'} for sign-off</div></div>`);
+  host.innerHTML = html.join('');
+}
+
+// ── sites ──────────────────────────────────────────────────────────────────
+function cell(site, r) {
+  const round = S.rounds[r - 1] || { sites: {}, gate: null };
+  const info = round.sites[site.key];
+  const cur = site.round || 0, st = site.status;
+  const losses = info && info.losses.length ? `<span class="sub">loss ${fmt(info.losses[0], 3)} → ${fmt(info.losses[info.losses.length - 1], 3)}</span>` : '';
+  const g = site.role === 'coordinator' ? round.gate : null;
+  const gate = g ? `<span class="chip ${g.accepted ? 'good' : 'warn'}">${g.accepted ? ICON.check + 'gate accepted' : ICON.cross + 'gate rejected'}</span>` : '';
+  if (r > cur) return '<span class="muted">waiting</span>';
+  if (r === cur && st === 'Failed') return `<div class="cell"><span class="chip bad">${ICON.cross}failed</span>${info && info.error ? `<span class="sub">${esc(info.error)}</span>` : ''}</div>`;
+  if (r < cur || st === 'Success') return `<div class="cell"><span class="done">${ICON.check}trained</span>${losses}${gate}</div>`;
+  return `<div class="cell"><span class="chip live"><i></i>${esc(st)}</span>${losses}${gate}</div>`;
+}
+function renderSites() {
+  const t = $('site-table');
+  if (!S.project || !S.sites.length) {
+    $('sites-split').classList.remove('stacked');
+    const st = S.site_status || {};
+    const rows = ['A', 'B', 'C'].map(k => `<tr><td><div class="site-name"><i class="swatch" style="background:${siteColors()[k]}"></i>Site ${k}</div></td><td class="sub">${esc(st[k] || 'not registered')}</td></tr>`).join('');
+    t.innerHTML = `<tr><th>Site</th><th>Connection</th></tr>${rows}`;
+    return;
+  }
+  const n = total(), colors = siteColors();
+  // Past three rounds the table takes the full width and the activity goes below it
+  $('sites-split').classList.toggle('stacked', n > 3);
+  const head = `<tr><th>Site</th>${Array.from({ length: n }, (_, i) => `<th>Round ${i + 1}</th>`).join('')}</tr>`;
+  const rows = S.sites.map(s => {
+    const k = trainSamples(s.key);
+    const conn = s.connected && s.connected !== 'Connected' ? `, ${esc(s.connected.toLowerCase())}` : '';
+    return `<tr><td><div class="site-name"><i class="swatch" style="background:${colors[s.key] || css('--ink-3')}"></i>Site ${esc(s.key)}</div><div class="sub">${esc(s.name)}${k != null ? `, ${k} samples` : ''}${conn}</div></td>${Array.from({ length: n }, (_, i) => `<td>${cell(s, i + 1)}</td>`).join('')}</tr>`;
+  }).join('');
+  t.innerHTML = head + rows;
+}
+function renderEvents() {
+  const ic = { good: '✓', warn: '✗', bad: '✗', info: '•' };
+  const list = (S.events || []).slice(0, 80);
+  $('events').innerHTML = list.length
+    ? list.map(e => `<li class="${esc(e.kind)}"><time>${fmtTime(e.t * 1000)}</time><span><span class="ic" aria-hidden="true">${ic[e.kind] || '•'}</span>${esc(e.text)}</span></li>`).join('')
+    : '<li class="muted">Changes show up here while the page is open.</li>';
+}
+
+// ── gate ───────────────────────────────────────────────────────────────────
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw);
+  const t = []; for (let v = Math.floor(lo / step) * step; v <= hi + step * 0.999; v += step) t.push(+v.toFixed(10));
+  return t;
+}
+// A line sample in a series' own style, for legends
+function swatch(color, dashed, hollow, marker = true) {
+  return `<svg class="swatch-line" width="26" height="10" viewBox="0 0 26 10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="${color}" stroke-width="2"${dashed ? ' stroke-dasharray="4 3"' : ''}/>${marker ? `<circle cx="13" cy="5" r="3.5" fill="${hollow ? css('--surface') : color}" stroke="${color}" stroke-width="${hollow ? 2 : 0}"/>` : ''}</svg>`;
+}
+function lineChart(host, series, labels, opts) {
+  const W = 300, H = 160, L = 40, R = 14, T = 16, B = 24;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': opts.aria }, host);
+  const k = series.kept, base = series.base || [], loc = series.local || [], sites = series.localSites || {};
+  const vals = [...k, ...base, ...loc, ...series.rejected.map(p => p.v)].filter(v => v != null && isFinite(v));
+  const n = labels.length;
+  const x = i => L + i * (W - L - R) / Math.max(1, n - 1);
+  if (!vals.length) {
+    el('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, class: 'axis' }, svg);
+    labels.forEach((l, i) => { const tx = el('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = l; });
+    const tx = el('text', { x: (L + W - R) / 2, y: (T + H - B) / 2, 'text-anchor': 'middle', style: `fill:${css('--ink-3')}` }, svg); tx.textContent = 'Waiting for the first gate';
+    return;
+  }
+  // An untrained start far above every later score would flatten the rounds that matter. The
+  // scale then covers the rounds only, from zero, and the start shows as an arrow with its value
+  const startVals = [k[0], base[0], loc[0]].filter(v => v != null && isFinite(v));
+  const laterVals = [...k.slice(1), ...base.slice(1), ...loc.slice(1), ...series.rejected.map(p => p.v)].filter(v => v != null && isFinite(v));
+  const offscale = !!opts.clipStart && startVals.length > 0 && laterVals.length > 0 && Math.max(...startVals) > 2 * Math.max(...laterVals);
+  const scaled = offscale ? laterVals : vals;
+  let lo = opts.min != null ? opts.min : Math.min(...scaled), hi = opts.max != null ? Math.max(opts.max, ...scaled) : Math.max(...scaled);
+  const ticks = niceTicks(lo, hi, 4); lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const y = v => T + (hi - v) / (hi - lo || 1) * (H - T - B);
+  ticks.forEach(t => { el('line', { x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'gridline' }, svg); const tx = el('text', { x: L - 6, y: y(t) + 4, 'text-anchor': 'end' }, svg); tx.textContent = +t.toFixed(2); });
+  el('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, class: 'axis' }, svg);
+  labels.forEach((l, i) => { const tx = el('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }, svg); tx.textContent = l; });
+  const cross = el('line', { y1: T, y2: H - B, stroke: css('--ink-3'), 'stroke-width': 1, visibility: 'hidden' }, svg);
+  const accent = css('--accent'), surface = css('--surface'), warn = css('--warn'), grey = css('--ink-3');
+  const unit = opts.unit ? ' ' + opts.unit : '';
+  const from = offscale ? 1 : 0;
+  const shown = vs => vs.map((v, i) => [i, v]).filter(([i, v]) => i >= from && v != null);
+  const path = (vs, attrs) => el('path', Object.assign({ d: shown(vs).map(([i, v], j) => `${j ? 'L' : 'M'}${x(i)},${y(v)}`).join(''), fill: 'none', 'stroke-width': 2, 'stroke-linejoin': 'round' }, attrs), svg);
+  if (offscale) {
+    el('path', { d: `M${x(0)},${T + 14} L${x(0)},${T} M${x(0) - 4},${T + 5} L${x(0)},${T} L${x(0) + 4},${T + 5}`, fill: 'none', stroke: grey, 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    const st = el('text', { x: x(0) + 7, y: T + 9, style: `fill:${css('--ink-2')}` }, svg); st.textContent = fmt(startVals[0], opts.d);
+  }
+  // The baselines go first, which keeps the federated line on top
+  if (loc.length) {
+    path(loc, { stroke: grey, 'stroke-dasharray': '5 4' });
+    shown(loc).forEach(([i, v]) => el('circle', { cx: x(i), cy: y(v), r: 4, fill: surface, stroke: grey, 'stroke-width': 2 }, svg));
+  }
+  if (base.length) {
+    path(base, { stroke: grey });
+    shown(base).forEach(([i, v]) => el('circle', { cx: x(i), cy: y(v), r: 4, fill: grey, stroke: surface, 'stroke-width': 2 }, svg));
+  }
+  if (k.length) {
+    path(k, { stroke: accent });
+    shown(k).forEach(([i, v]) => el('circle', { cx: x(i), cy: y(v), r: i === k.length - 1 ? 5 : 4, fill: accent, stroke: surface, 'stroke-width': 2 }, svg));
+  }
+  // Rejected candidates on top, as rings wide enough to show the kept point inside
+  series.rejected.forEach(p => {
+    el('circle', { cx: x(p.i), cy: y(p.v), r: 7, fill: 'none', stroke: surface, 'stroke-width': 4 }, svg);
+    el('circle', { cx: x(p.i), cy: y(p.v), r: 7, fill: 'none', stroke: warn, 'stroke-width': 2 }, svg);
+  });
+  // End values in order of priority, each above or below its point where that spot is free.
+  // A value with no free spot is left to the tooltip, the tiles and the tables, except the
+  // federated one, which always shows
+  const ends = [
+    k.length > from && { i: k.length - 1, v: k[k.length - 1], style: `fill:${css('--ink')};font-weight:600` },
+    base.length > from && { i: base.length - 1, v: base[base.length - 1], style: `fill:${css('--ink-2')}` },
+    loc.length > from && { i: loc.length - 1, v: loc[loc.length - 1], style: `fill:${css('--ink-2')}` },
+  ].filter(Boolean);
+  const taken = [];
+  const halo = `paint-order:stroke;stroke:${surface};stroke-width:3px;stroke-linejoin:round`;
+  ends.forEach((e, j) => {
+    const ex = x(e.i), ey = y(e.v), atEnd = e.i === n - 1, side = atEnd ? -6 : 6;
+    // Above the point, below it, or to its left, whichever is free first
+    const spots = [{ x: ex + side, y: ey - 9, anchor: atEnd ? 'end' : 'start' },
+                   { x: ex + side, y: ey + 17, anchor: atEnd ? 'end' : 'start' },
+                   { x: ex - 9, y: ey + 4, anchor: 'end' }];
+    const free = spot => spot.y >= 9 && spot.y <= H - B - 3
+      && !taken.some(t => Math.abs(t.x - spot.x) < 40 && Math.abs(t.y - spot.y) < 12)
+      && !ends.some((p, pj) => pj !== j && Math.abs(x(p.i) - ex) < 30 && Math.abs(y(p.v) - (spot.y - 4)) < 9);
+    let spot = spots.find(free);
+    if (!spot && j === 0 && k.length) spot = spots[0];
+    if (!spot) return;
+    taken.push(spot);
+    const t = el('text', { x: spot.x, y: spot.y, 'text-anchor': spot.anchor, style: `${e.style};${halo}` }, svg);
+    t.textContent = fmt(e.v, opts.d);
+  });
+  // One hover and focus target per round, with every value of that round
+  const half = (W - L - R) / Math.max(1, n - 1) / 2;
+  for (let i = 0; i < n; i++) {
+    const lines = [];
+    if (i === 0) {
+      const v = [k[0], base[0], loc[0]].find(z => z != null);
+      if (v != null) lines.push(`Start, ${esc(opts.seed)} · ${fmt(v, opts.d)}${unit}`);
+    } else {
+      const cand = series.rejected.find(p => p.i === i);
+      if (k[i] != null) lines.push(`Federated after round ${i} · ${fmt(k[i], opts.d)}${unit}${cand ? ', previous model kept' : ''}`);
+      if (cand) lines.push(`Rejected candidate · ${fmt(cand.v, opts.d)}${unit}`);
+      if (base[i] != null) lines.push(`Centralized after round ${i} · ${fmt(base[i], opts.d)}${unit}`);
+      if (loc[i] != null) {
+        const per = Object.keys(sites).sort().filter(s => sites[s][i] != null).map(s => `${s} ${fmt(sites[s][i], opts.d)}`).join(', ');
+        lines.push(`Local only after round ${i} · ${fmt(loc[i], opts.d)}${unit} on average${per ? ', ' + per : ''}`);
+      }
+    }
+    if (!lines.length) continue;
+    const text = lines.join('<br>');
+    const x0 = Math.max(L - 10, x(i) - half), x1 = Math.min(W - R + 10, x(i) + half);
+    const band = el('rect', { x: x0, y: T, width: x1 - x0, height: H - T - B, fill: 'transparent', class: 'hit', tabindex: 0, 'aria-label': lines.join('. ') }, svg);
+    const on = () => { cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible'); };
+    const off = () => { hideTip(); cross.setAttribute('visibility', 'hidden'); };
+    band.addEventListener('mousemove', e => { on(); showTip(e, text); });
+    band.addEventListener('mouseleave', off);
+    band.addEventListener('focus', () => { on(); showTipAt(band, text); });
+    band.addEventListener('blur', off);
+  }
+}
+function baselineChip(b) {
+  if (b.status === 'done') return `<span class="chip plain">${ICON.check}trained in ${fmtDur((b.seconds || 0) * 1000)}</span>`;
+  if (b.status === 'training') return `<span class="chip live"><i></i>training round ${Math.min(b.round + 1, b.rounds)} of ${b.rounds}</span>`;
+  if (b.status === 'failed') return `<span class="chip bad">${ICON.cross}failed</span><span class="sub">${esc(b.error)}</span>`;
+  return '<span class="chip plain">queued</span>';
+}
+const andList = items => items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+function renderBaselineRow() {
+  const host = $('baseline-row'), b = baseline(), l = localOnly(), grey = css('--ink-3');
+  if (!b && !l) {
+    host.hidden = !(storesChanged() && (S.baseline || S.local));
+    host.innerHTML = host.hidden ? '' : '<div class="rounds-row"><span class="sub">Baselines hidden. This run used earlier toy stores than the ones on disk, and the baselines train on the current stores.</span></div>';
+    return;
+  }
+  host.hidden = false;
+  const rows = [];
+  if (b) {
+    const ps = b.per_site || {};
+    const pool = b.n_train ? `<span class="sub">${b.n_train} pooled train samples, ${andList(['A', 'B', 'C'].filter(s => ps[s] != null).map(s => `${ps[s]} from ${s}`))}</span>` : '';
+    rows.push(`<div class="rounds-row"><span class="verdict">${swatch(grey, false, false)}<span>Centralized baseline</span>${baselineChip(b)}</span>${pool}</div>`);
+  }
+  if (l) {
+    const sites = Object.keys(l.site_scores || l.per_site || {}).sort();
+    const how = sites.length ? `<span class="sub">each site on its own samples, no aggregation, scores averaged over ${andList(sites)}</span>` : '';
+    rows.push(`<div class="rounds-row"><span class="verdict">${swatch(grey, true, true)}<span>Local-only baseline</span>${baselineChip(l)}</span>${how}</div>`);
+  }
+  host.innerHTML = rows.join('');
+}
+function renderGate() {
+  const n = total(), g = gates(), c = coordinator(), cfg = (S.config && S.config.gate) || {}, b = baseline(), l = localOnly();
+  const nEval = (g.find(x => x) || {}).eval_samples || (S.fields && S.fields.n_eval) || null;
+  const peak = cfg.max_peak_distance_increase_mm;
+  const rule = cfg.enabled === false
+    ? 'The gate is off for this run, so every averaged model becomes the new global model.'
+    : `keeps it only if the mean relative l2 error does not rise${cfg.max_rel_l2_increase ? ` by more than ${cfg.max_rel_l2_increase} points` : ''}${peak == null ? '' : +peak === 0 ? ' and the mean peak distance does not rise either' : ` and the mean peak distance does not rise by more than ${peak} mm`}.`;
+  const pooled = b && b.n_train ? `the ${b.n_train} train samples of all three sites pooled in one place` : 'the train samples of all three sites pooled in one place';
+  const baseText = (b || l) ? ` The grey lines are baselines, trained from the same start with the same settings and rounds.${b ? ` The solid one is centralized, on ${pooled}.` : ''}${l ? ' The dashed one is local only. Each site trains on its own samples without aggregation, and the line shows the simple average of the sites\' scores.' : ''} With all stores on one machine, only this demo can train them.` : '';
+  $('gate-lede').textContent = (cfg.enabled === false ? rule
+    : `After each round the coordinator scores the averaged model on ${nEval ? nEval + ' ' : 'its '}held-out NeuroFUS samples and ${rule} The first point is the starting model, ${S.config.seed_model_version || 'init:0'}.`) + baseText;
+  // Verdict chips
+  const chips = [];
+  for (let r = 1; r <= n; r++) {
+    const x = g[r - 1];
+    let chip;
+    if (x) chip = `<span class="chip ${x.accepted ? 'good' : 'warn'}">${x.accepted ? ICON.check + 'accepted' : ICON.cross + 'rejected'}</span>`;
+    else if (c && c.round === r && (c.status === 'Aggregating' || c.status === 'Pending Aggregating')) chip = '<span class="chip live"><i></i>scoring</span>';
+    else if (c && c.status === 'Failed' && c.round === r) chip = `<span class="chip bad">${ICON.cross}failed</span>`;
+    else chip = '<span class="chip idle">waiting</span>';
+    chips.push(`<span class="verdict"><span>Round ${r}</span>${chip}</span>`);
+  }
+  $('verdicts').innerHTML = chips.join('');
+  renderBaselineRow();
+  // Small multiples, one per metric
+  const labels = ['start', ...Array.from({ length: n }, (_, i) => 'R' + (i + 1))];
+  const host = $('multiples'); host.innerHTML = '';
+  let anyRejected = false;
+  METRICS.forEach(m => {
+    const p = document.createElement('div'); p.className = 'panel';
+    p.innerHTML = `<h3>${m.label}${m.unit ? ', ' + m.unit : ''} <span style="font-weight:400;color:var(--ink-3);font-size:12px">· ${m.lower ? 'lower is better' : 'higher is better'}</span></h3>`;
+    host.appendChild(p);
+    const s = gateSeries(m.key);
+    s.base = baseSeries(m.key);
+    s.local = localSeries(m.key);
+    s.localSites = localSiteSeries(m.key);
+    anyRejected = anyRejected || s.rejected.length > 0;
+    lineChart(p, s, labels, { min: 0, max: m.key === 'ssim' ? 1 : null, clipStart: m.key !== 'ssim', unit: m.unit, d: m.d, aria: m.label + ' per round', seed: S.config.seed_model_version || 'init:0', gates: g });
+  });
+  const grey = css('--ink-3');
+  const legend = [`<span>${swatch(css('--accent'), false, false)}federated, global model after each round</span>`];
+  if (b) legend.push(`<span>${swatch(grey, false, false)}centralized baseline</span>`);
+  if (l) legend.push(`<span>${swatch(grey, true, true)}local-only baseline, average over sites</span>`);
+  if (anyRejected) legend.push('<span><i class="ring"></i>candidate the gate rejected</span>');
+  $('gate-legend').innerHTML = legend.join('');
+  $('gate-legend').hidden = legend.length < 2;
+  // Table views
+  const rows = g.map((x, i) => x ? `<tr><td>${i + 1}</td>${METRICS.map(m => `<td class="num">${fmt(x.current[m.key], m.d)}</td><td class="num">${fmt(x.candidate[m.key], m.d)}</td>`).join('')}<td>${x.accepted ? 'accepted' : 'rejected, ' + esc(x.reasons.join('; '))}</td></tr>` : '').join('');
+  $('gate-table').innerHTML = `<tr><th>Round</th>${METRICS.map(m => `<th class="num">${m.label}, current</th><th class="num">candidate</th>`).join('')}<th>Gate</th></tr>` + (rows || `<tr><td colspan="8" class="muted">No gate report so far.</td></tr>`);
+  $('compare-details').hidden = !(b || l);
+  if (b || l) {
+    const cols = [['federated', m => gateSeries(m.key).kept]];
+    if (b) cols.push(['centralized', m => baseSeries(m.key)]);
+    if (l) cols.push(['local only', m => localSeries(m.key)]);
+    const data = METRICS.map(m => cols.map(([, f]) => f(m)));
+    const body = Array.from({ length: n + 1 }, (_, i) => `<tr><td>${i ? i : 'start'}</td>${METRICS.map((m, j) => data[j].map(v => `<td class="num">${fmt(v[i], m.d)}</td>`).join('')).join('')}</tr>`).join('');
+    $('compare-table').innerHTML = `<tr><th>Round</th>${METRICS.map(m => cols.map(([name], ci) => `<th class="num">${ci ? '' : m.label + ', '}${name}</th>`).join('')).join('')}</tr>` + body;
+  }
+  const sites = l && l.site_scores ? Object.keys(l.site_scores).sort() : [];
+  $('local-details').hidden = !sites.length;
+  if (sites.length) {
+    const body = Array.from({ length: n + 1 }, (_, i) => `<tr><td>${i ? i : 'start'}</td>${METRICS.map(m => sites.map(s => `<td class="num">${fmt((l.site_scores[s][i] || {})[m.key], m.d)}</td>`).join('')).join('')}</tr>`).join('');
+    $('local-table').innerHTML = `<tr><th>Round</th>${METRICS.map(m => sites.map((s, si) => `<th class="num">${si ? '' : m.label + ', '}site ${esc(s)}</th>`).join('')).join('')}</tr>` + body;
+  }
+}
+
+// ── training losses ────────────────────────────────────────────────────────
+function renderLoss() {
+  const host = $('loss-chart'); host.innerHTML = '';
+  const n = total(), per = epochsPerRound(), colors = siteColors(), b = baseline(), l = localOnly(), grey = css('--ink-3');
+  $('loss-lede').textContent = `Each site trains for ${per} epoch${per === 1 ? '' : 's'} per round on its own store and sends only its weight update. Every round restarts from the global model the gate kept. A site's losses appear once it finishes training the round.${b || l ? ` The grey lines are the baselines, solid for centralized on the pooled samples${l ? ' and dashed for the local-only average over sites' : ''}.` : ''}`;
+  const pick = rows => Array.from({ length: n }, (_, r) => rows[r] && rows[r].length ? rows[r].slice(0, per) : null);
+  const series = S.sites.map(s => {
+    const c = trainSamples(s.key);
+    return { label: 'Site ' + s.key, color: colors[s.key] || grey, legend: `Site ${s.key}${c != null ? `, ${c} samples` : ''}`, data: pick(S.rounds.map(r => (r.sites[s.key] || {}).losses || [])) };
+  });
+  if (b && b.losses && b.losses.length) series.push({ label: 'Centralized', color: grey, legend: `Centralized baseline${b.n_train ? `, ${b.n_train} pooled samples` : ''}`, data: pick(b.losses) });
+  if (l && l.losses && l.losses.length) series.push({ label: 'Local only', color: grey, dashed: true, legend: 'Local-only baseline, average over sites', data: pick(l.losses) });
+  $('loss-legend').innerHTML = series.map(s => `<span>${swatch(s.color, s.dashed, false, false)}${esc(s.legend)}</span>`).join('');
+  const all = series.flatMap(s => s.data.filter(Boolean).flat());
+  if (!all.length) {
+    host.innerHTML = '<p class="empty">The losses appear here as each site finishes training its first round.</p>';
+    $('loss-table').innerHTML = '';
+    return;
+  }
+  const slots = n * per;
+  const W = 960, H = 280, L = 44, R = 92, T = 26, B = 30;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': 'Training loss per epoch at each site and of the baselines' }, host);
+  const ticks = niceTicks(0, Math.max(...all), 4), top = ticks[ticks.length - 1];
+  const x = i => L + i * (W - L - R) / Math.max(1, slots - 1);
+  const y = v => T + (top - v) / top * (H - T - B);
+  ticks.forEach(t => { el('line', { x1: L, x2: W - R, y1: y(t), y2: y(t), class: 'gridline' }, svg); const tx = el('text', { x: L - 8, y: y(t) + 4, 'text-anchor': 'end' }, svg); tx.textContent = t; });
+  for (let r = 0; r < n; r++) {
+    if (r) el('line', { x1: (x(r * per - 1) + x(r * per)) / 2, x2: (x(r * per - 1) + x(r * per)) / 2, y1: T - 14, y2: H - B, class: 'axis' }, svg);
+    const tx = el('text', { x: (x(r * per) + x(r * per + per - 1)) / 2, y: T - 12, 'text-anchor': 'middle', style: 'font-weight:600' }, svg); tx.textContent = `Round ${r + 1}`;
+  }
+  const every = slots > 24 ? Math.ceil(slots / 24) : 1;
+  for (let i = 0; i < slots; i++) { if ((i % per) % every) continue; const tx = el('text', { x: x(i), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = (i % per) + 1; }
+  el('line', { x1: L, x2: W - R, y1: H - B, y2: H - B, class: 'axis' }, svg);
+  const ends = [];
+  series.forEach(s => {
+    let lastI = -1, lastV = null;
+    s.data.forEach((seg, r) => {
+      if (!seg) return;
+      const attrs = { d: seg.map((v, j) => `${j ? 'L' : 'M'}${x(r * per + j)},${y(v)}`).join(''), fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' };
+      if (s.dashed) attrs['stroke-dasharray'] = '6 4';
+      el('path', attrs, svg);
+      lastI = r * per + seg.length - 1; lastV = seg[seg.length - 1];
+    });
+    if (lastI >= 0) ends.push({ x: x(lastI), y: y(lastV), label: s.label });
+  });
+  // End labels, nudged apart and kept inside the plot
+  ends.sort((a, b2) => a.y - b2.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+  // A stack pushed below the axis moves up as a whole
+  const overflow = ends.length ? ends[ends.length - 1].y - (H - B - 4) : 0;
+  if (overflow > 0) ends.forEach(e => { e.y -= overflow; });
+  ends.forEach(e => { const tx = el('text', { x: Math.min(e.x + 8, W - R + 8), y: e.y + 4, style: `fill:${css('--ink-2')};font-weight:600` }, svg); tx.textContent = e.label; });
+  // Crosshair hover
+  const cross = el('line', { y1: T, y2: H - B, stroke: css('--ink-3'), 'stroke-width': 1, visibility: 'hidden' }, svg);
+  const dots = series.map(s => el('circle', { r: 4, fill: s.dashed ? css('--surface') : s.color, stroke: s.dashed ? s.color : css('--surface'), 'stroke-width': 2, visibility: 'hidden' }, svg));
+  const hit = el('rect', { x: L, y: T, width: W - L - R, height: H - T - B, fill: 'transparent' }, svg);
+  hit.addEventListener('mousemove', e => {
+    const box = svg.getBoundingClientRect(), px = (e.clientX - box.left) / box.width * W;
+    const i = Math.max(0, Math.min(slots - 1, Math.round((px - L) / ((W - L - R) / Math.max(1, slots - 1)))));
+    const r = Math.floor(i / per), j = i % per;
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+    const lines = [];
+    series.forEach((s, si) => {
+      const v = s.data[r] ? s.data[r][j] : undefined;
+      if (v == null) { dots[si].setAttribute('visibility', 'hidden'); return; }
+      dots[si].setAttribute('cx', x(i)); dots[si].setAttribute('cy', y(v)); dots[si].setAttribute('visibility', 'visible');
+      lines.push(`${s.label} loss ${v.toFixed(3)}`);
+    });
+    showTip(e, `Round ${r + 1}, epoch ${j + 1}<br>` + (lines.length ? lines.join('<br>') : 'not trained so far'));
+  });
+  hit.addEventListener('mouseleave', () => { hideTip(); cross.setAttribute('visibility', 'hidden'); dots.forEach(d => d.setAttribute('visibility', 'hidden')); });
+  // Table view
+  const body = [];
+  for (let r = 0; r < n; r++) for (let j = 0; j < per; j++) {
+    if (!series.some(s => s.data[r] && s.data[r][j] != null)) continue;
+    body.push(`<tr><td class="num">${r + 1}</td><td class="num">${j + 1}</td>${series.map(s => `<td class="num">${s.data[r] && s.data[r][j] != null ? s.data[r][j].toFixed(4) : 'n/a'}</td>`).join('')}</tr>`);
+  }
+  $('loss-table').innerHTML = `<tr><th class="num">Round</th><th class="num">Epoch</th>${series.map(s => `<th class="num">${esc(s.label)}</th>`).join('')}</tr>` + body.join('');
+}
+
+// ── field slices ───────────────────────────────────────────────────────────
+function hexToRgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); }
+function ramp(stops) { const c = stops.map(hexToRgb); return t => { t = Math.max(0, Math.min(1, t)) * (c.length - 1); const i = Math.min(c.length - 2, Math.floor(t)), f = t - i; return c[i].map((v, k) => Math.round(v + (c[i + 1][k] - v) * f)); }; }
+const BLUE = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+function maps() {
+  const dark = isDark();
+  return {
+    amp: ramp(dark ? ['#15181d', '#0d366b', '#184f95', '#256abf', '#3987e5', '#6da7ec', '#b7d3f6'] : ['#f4f8fd', ...BLUE]),
+    ct: ramp(['#000000', '#ffffff']),
+    div: ramp(dark ? ['#3987e5', '#1f4b80', '#3a3d42', '#7a3a1e', '#d95926'] : ['#2a78d6', '#9ec5f4', '#e6e6e3', '#f4b394', '#eb6834']),
+  };
+}
+function drawField(host, title, unit, grid, mask, cmap, lo, hi, fmtv, signed, spacing) {
+  const nx = grid.length, nz = grid[0].length;
+  const wrap = document.createElement('div'); wrap.className = 'field';
+  wrap.innerHTML = `<div class="cap"><h3>${esc(title)}</h3><span class="unit">${esc(unit)}</span></div>`;
+  const cv = document.createElement('canvas'); const P = 8; cv.width = nz * P; cv.height = nx * P;
+  const ctx = cv.getContext('2d');
+  for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) {
+    const [r, g, b] = cmap((grid[i][k] - lo) / (hi - lo || 1));
+    ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(k * P, i * P, P, P);
+  }
+  if (mask) {
+    ctx.strokeStyle = isDark() ? 'rgba(255,255,255,0.85)' : 'rgba(16,19,24,0.8)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) {
+      if (!mask[i][k]) continue;
+      if (i === 0 || !mask[i - 1][k]) { ctx.moveTo(k * P, i * P); ctx.lineTo(k * P + P, i * P); }
+      if (i === nx - 1 || !mask[i + 1][k]) { ctx.moveTo(k * P, i * P + P); ctx.lineTo(k * P + P, i * P + P); }
+      if (k === 0 || !mask[i][k - 1]) { ctx.moveTo(k * P, i * P); ctx.lineTo(k * P, i * P + P); }
+      if (k === nz - 1 || !mask[i][k + 1]) { ctx.moveTo(k * P + P, i * P); ctx.lineTo(k * P + P, i * P + P); }
+    }
+    ctx.stroke();
+  }
+  cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', title);
+  cv.addEventListener('mousemove', e => {
+    const b = cv.getBoundingClientRect(); const k = Math.floor((e.clientX - b.left) / b.width * nz), i = Math.floor((e.clientY - b.top) / b.height * nx);
+    if (i < 0 || k < 0 || i >= nx || k >= nz) return;
+    showTip(e, `${esc(title)}<br>depth ${(k * spacing).toFixed(1)} mm, x ${(i * spacing).toFixed(1)} mm<br>${fmtv(grid[i][k])}`);
+  });
+  cv.addEventListener('mouseleave', hideTip);
+  wrap.appendChild(cv);
+  const cb = document.createElement('div'); cb.className = 'cbar';
+  const bar = document.createElement('canvas'); bar.width = 128; bar.height = 1; const bctx = bar.getContext('2d');
+  for (let j = 0; j < 128; j++) { const [r, g, b] = cmap(j / 127); bctx.fillStyle = `rgb(${r},${g},${b})`; bctx.fillRect(j, 0, 1, 1); }
+  cb.appendChild(bar);
+  cb.insertAdjacentHTML('beforeend', `<div class="ends"><span>${fmtv(lo)}</span>${signed ? '<span>0</span>' : ''}<span>${fmtv(hi)}</span></div>`);
+  wrap.appendChild(cb);
+  host.appendChild(wrap);
+}
+const kPa = v => (v / 1000).toFixed(1) + ' kPa';
+const kPaS = v => (v > 0 ? '+' : '') + (v / 1000).toFixed(1) + ' kPa';
+function modelList() {
+  if (!S || !S.project) return [];
+  const seed = S.config.seed_model_version || 'init:0';
+  const list = [{ v: seed, label: seed, round: 0 }, ...(S.registry || []).map(m => ({ v: m.version, label: m.version, round: m.round }))];
+  const b = baseline();
+  if (b && b.status === 'done') list.push({ v: b.key, label: 'centralized', baseline: true });
+  const l = localOnly();
+  if (l && l.status === 'done') Object.keys(l.site_scores || {}).sort().forEach(site => list.push({ v: `${l.key}-${site}`, label: `local ${site}`, baseline: true, local: site }));
+  return list;
+}
+// The model shown, by default the newest federated one
+function currentModel(models) {
+  const ready = models.filter(m => F && F.models[m.v]);
+  if (pinnedModel && ready.some(m => m.v === pinnedModel)) return pinnedModel;
+  const federated = ready.filter(m => !m.baseline);
+  return federated.length ? federated[federated.length - 1].v : (ready.length ? ready[0].v : null);
+}
+function seg(hostId, items, current, onPick) {
+  const host = $(hostId);
+  host.innerHTML = items.map((t, i) => `<button type="button" aria-pressed="${t.key === current}" ${t.disabled ? 'disabled' : ''} title="${esc(t.title || '')}">${esc(t.label)}</button>`).join('');
+  host.querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => onPick(items[i].key)));
+}
+function renderFields(force) {
+  const host = $('fields'), stat = $('sample-stat'), fs = (S && S.fields) || {};
+  if (!S || !S.project) { $('sample-seg').innerHTML = ''; $('model-seg').innerHTML = ''; host.innerHTML = ''; stat.textContent = 'Fields appear here once a run exists.'; return; }
+  if (fs.error) { $('sample-seg').innerHTML = ''; $('model-seg').innerHTML = ''; host.innerHTML = ''; stat.textContent = `Field slices are unavailable, ${fs.error}.`; return; }
+  if (!F || !F.samples || !F.samples.length) { stat.textContent = 'Loading the held-out samples.'; return; }
+  const models = modelList();
+  const model = currentModel(models);
+  if (curSample >= F.samples.length) curSample = 0;
+  const failed = fs.failed || {};
+  const sampleItems = F.samples.map((s, i) => ({ key: i, label: s.region }));
+  const modelItems = models.map(m => ({
+    key: m.v, label: m.label,
+    disabled: !F.models[m.v],
+    title: !F.models[m.v] ? (failed[m.v] ? 'Failed, ' + failed[m.v] : 'Computing its fields')
+      : m.local ? `Site ${m.local}'s local-only model, trained on its own samples only` : m.baseline ? 'The centralized baseline, trained on the pooled samples'
+      : m.round ? `Global model after round ${m.round}` : 'The untrained starting model',
+  }));
+  const sig = [curSample, model, sampleItems, modelItems, fieldsRev, isDark()];
+  if (!force && !changed('fields', sig)) return;
+  seg('sample-seg', sampleItems, curSample, k => { curSample = k; renderFields(true); });
+  seg('model-seg', modelItems, model, k => { const last = models.filter(m => F.models[m.v] && !m.baseline).pop(); pinnedModel = last && k === last.v ? null : k; renderFields(true); });
+  const s = F.samples[curSample];
+  const pending = models.filter(m => !F.models[m.v] && !failed[m.v]).map(m => m.label);
+  if (!model) { host.classList.add('stale'); stat.textContent = `Computing the fields of ${pending.join(', ') || 'the models'}.`; return; }
+  const entry = F.models[model], pred = entry.slices[curSample], M = maps();
+  host.classList.toggle('stale', false);
+  host.innerHTML = '';
+  const sp = s.spacing_mm || 0.49;
+  const truthMax = Math.max(...s.skull.flat(), ...pred.flat());
+  const err = s.skull.map((row, i) => row.map((v, k) => pred[i][k] - v));
+  const emax = Math.max(1, ...err.flat().map(Math.abs));
+  drawField(host, 'CT', 'HU', s.ct, null, M.ct, 0, Math.max(...s.ct.flat()), v => Math.round(v) + ' HU', false, sp);
+  drawField(host, 'Water field', 'amplitude', s.water, s.mask, M.amp, 0, Math.max(...s.water.flat()), kPa, false, sp);
+  drawField(host, 'Transcranial field', 'simulation', s.skull, s.mask, M.amp, 0, truthMax, kPa, false, sp);
+  const m = models.find(x => x.v === model);
+  drawField(host, 'Prediction', m ? m.label : model, pred, s.mask, M.amp, 0, truthMax, kPa, false, sp);
+  drawField(host, 'Prediction minus truth', 'amplitude', err, s.mask, M.div, -emax, emax, kPaS, true, sp);
+  const row = entry.rows[s.index];
+  const b = baseline();
+  const l = localOnly();
+  const what = m && m.local ? `With site ${esc(m.local)}'s local-only model after ${l.rounds} rounds of ${l.epochs} epochs on its own ${(l.per_site || {})[m.local]} samples,`
+    : m && m.baseline ? `With the centralized baseline after ${b.rounds} rounds of ${b.epochs} epochs on ${b.n_train} pooled samples,`
+    : m && m.round ? `With ${esc(model)}, the global model after round ${m.round},` : `With ${esc(model)}, the untrained starting model,`;
+  const tail = pending.length ? ` Computing ${esc(pending.join(', '))}.` : '';
+  stat.innerHTML = `Sample ${s.index + 1} of ${F.n_eval}, region ${esc(s.region)}, slice y = ${s.y}. ${what} relative l2 error <b>${fmt(row.rel_l2_pct, 1)} %</b>, peak distance <b>${fmt(row.peak_distance_mm, 2)} mm</b>, SSIM <b>${fmt(row.ssim, 2)}</b>.${tail}`;
+}
+async function loadFields(rev) {
+  if (fieldsLoading) return;
+  fieldsLoading = true;
+  try {
+    const r = await fetch('/api/fields', { cache: 'no-store' });
+    if (r.ok) { F = await r.json(); fieldsRev = F.rev; renderFields(); }
+  } catch (e) { /* the next poll retries */ }
+  finally { fieldsLoading = false; }
+}
+
+// ── regions and registry ───────────────────────────────────────────────────
+function renderRegions() {
+  const g = gates(), wrap = $('region-wrap');
+  let idx = -1; g.forEach((x, i) => { if (x && x.regions) idx = i; });
+  if (idx < 0) { $('region-title').textContent = 'Error by target region'; wrap.innerHTML = '<p class="empty">The breakdown appears after the first gate.</p>'; return; }
+  const last = g[idx].regions;
+  $('region-title').textContent = `Error by target region, round ${idx + 1}`;
+  const delta = (a, b) => { if (a == null || b == null) return 'n/a'; const better = b < a; return `<span class="${better ? 'better' : 'worse'}">${better ? '▼' : '▲'} ${Math.abs(b - a).toFixed(2)}</span>`; };
+  const order = REGION_ORDER.filter(r => last[r]).concat(Object.keys(last).filter(r => !REGION_ORDER.includes(r)));
+  wrap.innerHTML = `<table><tr><th>Region</th><th class="num">n</th><th class="num">Rel l2 %, current</th><th class="num">candidate</th><th class="num">change</th><th class="num">Peak mm, current</th><th class="num">candidate</th><th class="num">change</th></tr>` +
+    order.map(r => { const c = last[r].current || {}, n = last[r].candidate || {}; return `<tr><td>${esc(r)}</td><td class="num">${last[r].n == null ? 'n/a' : last[r].n}</td><td class="num">${fmt(c.rel_l2_pct)}</td><td class="num">${fmt(n.rel_l2_pct)}</td><td class="num">${delta(c.rel_l2_pct, n.rel_l2_pct)}</td><td class="num">${fmt(c.peak_distance_mm)}</td><td class="num">${fmt(n.peak_distance_mm)}</td><td class="num">${delta(c.peak_distance_mm, n.peak_distance_mm)}</td></tr>`; }).join('') + '</table>';
+}
+function renderRegistry() {
+  const wrap = $('registry-wrap'), reg = (S.registry || []).slice().reverse();
+  if (!S.project) { wrap.innerHTML = '<p class="empty">No project so far.</p>'; return; }
+  if (!reg.length) { wrap.innerHTML = '<p class="empty">No model of this project has passed the gate so far.</p>'; return; }
+  const status = m => m.status === 'approved' ? `<span class="chip good">${ICON.check}approved</span>` : m.status === 'rejected' ? `<span class="chip bad">${ICON.cross}rejected</span>` : `<span class="chip pending">${ICON.clock}pending</span>`;
+  const action = m => m.status === 'pending'
+    ? `<button type="button" class="btn small" data-approve="${esc(m.version)}" ${approving ? 'disabled' : ''}>Approve</button>`
+    : `<span class="sub">${esc(m.status)} by ${esc(m.reviewed_by || 'unknown')}${m.reviewed_at ? ' at ' + fmtWhen(Date.parse(m.reviewed_at)) : ''}</span>`;
+  wrap.innerHTML = `<table><tr><th>Version</th><th class="num">Round</th><th>Parent</th><th>Status</th><th class="num">Gate rel l2 %</th><th>sha256</th><th>Coordinator</th></tr>` +
+    reg.map(m => `<tr><td class="mono">${esc(m.version)}</td><td class="num">${m.round}</td><td class="mono">${esc(m.parent || 'none')}</td><td>${status(m)}</td><td class="num">${fmt(m.gate && m.gate.rel_l2_pct)}</td><td class="mono" title="${esc(m.sha256)}">${esc(String(m.sha256).slice(0, 12))}…</td><td>${action(m)}</td></tr>`).join('') + '</table>';
+}
+
+// ── actions ────────────────────────────────────────────────────────────────
+let startPending = false, approving = false;
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* no JSON body */ }
+  if (!r.ok) throw new Error(data.error || `The page server answered ${r.status}.`);
+  return data;
+}
+$('start-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('start-msg');
+  const body = { rounds: +$('f-rounds').value, epochs: +$('f-epochs').value, peak_margin_mm: $('f-margin').value === '' ? null : +$('f-margin').value };
+  startPending = true; renderRun();
+  msg.className = 'msg'; msg.textContent = 'Creating the project and starting the run.';
+  try {
+    const res = await post('/api/start', body);
+    msg.textContent = `Started ${res.project}.`;
+    pinnedModel = null; curSample = 0;
+  } catch (err) { msg.className = 'msg error'; msg.textContent = err.message; }
+  finally { startPending = false; poll(true); }
+});
+$('registry-wrap').addEventListener('click', async e => {
+  const b = e.target.closest('[data-approve]');
+  if (!b || approving) return;
+  const v = b.dataset.approve, msg = $('registry-msg');
+  if (!confirm(`Approve ${v} as the coordinator? Labs can then download it, and the decision is final.`)) return;
+  approving = true; renderRegistry();
+  msg.className = 'msg'; msg.textContent = `Approving ${v}.`;
+  try { await post('/api/approve', { version: v }); msg.textContent = `${v} is approved. Labs can download it from the registry.`; }
+  catch (err) { msg.className = 'msg error'; msg.textContent = err.message; }
+  finally { approving = false; memo.registry = null; poll(true); }
+});
+
+// ── polling ────────────────────────────────────────────────────────────────
+function render() {
+  renderConn(); renderBanner();
+  if (!S || !S.ready) return;
+  renderRun();
+  if (changed('head', [S.project, S.config, S.rounds.map(r => Object.keys(r.sites).map(k => r.sites[k].train_samples))])) renderHead();
+  const bl = S.baseline || {}, lb = S.local || {}, stale = storesChanged();
+  if (changed('tiles', [S.rounds.map(r => r.gate), S.registry, bl.scores, bl.status, lb.scores, lb.status, stale])) renderTiles();
+  if (changed('sites', [S.project, S.sites.map(s => [s.key, s.status, s.round, s.connected, s.name]), S.rounds, S.site_status])) renderSites();
+  if (changed('events', S.events)) renderEvents();
+  if (changed('gate', [S.project, S.config, S.rounds.map(r => r.gate), S.sites.map(s => [s.status, s.round]), S.fields && S.fields.n_eval, S.baseline, S.local, stale])) renderGate();
+  if (changed('loss', [S.project, S.config, S.sites.map(s => s.key), S.rounds.map(r => Object.keys(r.sites).map(k => [k, r.sites[k].losses, r.sites[k].train_samples])), bl.losses, bl.n_train, lb.losses, stale])) renderLoss();
+  if (changed('regions', S.rounds.map(r => r.gate && r.gate.regions))) renderRegions();
+  if (changed('registry', [S.project, S.registry, approving])) renderRegistry();
+  renderFields();
+  if (S.fields && S.fields.rev !== fieldsRev) loadFields(S.fields.rev);
+}
+let pollTimer = null;
+async function poll(now) {
+  clearTimeout(pollTimer);
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    S = await r.json(); lastOk = Date.now(); serverDown = false;
+  } catch (e) { serverDown = true; }
+  try { render(); } catch (e) { console.error(e); }
+  pollTimer = setTimeout(poll, POLL_MS);
+}
+function redrawAll() { for (const k in memo) delete memo[k]; render(); renderFields(true); }
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+poll();
+</script>
+</body>
+</html>

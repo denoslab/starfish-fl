@@ -1,13 +1,11 @@
 import json
 import os
-import requests
 from celery import Celery
+from celery.signals import beat_init, worker_init
 from celery.utils.log import get_task_logger
 from kombu import Exchange, Queue
-from starfish.controller import redis
+from starfish.controller import redis, run_dispatch
 from starfish.controller.site_status_task import report_alive
-from starfish.controller.utils import load_class, camel_to_snake, format_status, epoch_time_in_sec
-from starfish.controller.router_auth import router_auth
 
 logger = get_task_logger(__name__)
 
@@ -31,9 +29,27 @@ site_id = os.getenv('SITE_UID')
 
 run_key = 'starfish:controller:run:list:'
 
-# Keep singleton ml model instance
-ml_models = dict()
-ml_models_alive = dict()
+# The polling and dispatch logic lives in run_dispatch, shared with starfish-site
+is_stale = run_dispatch.is_stale
+_progress = run_dispatch.progress
+ml_models = run_dispatch.ml_models
+ml_models_alive = run_dispatch.ml_models_alive
+refresh_model = run_dispatch.refresh_model
+
+
+class RedisRunCache:
+    """The run cache of run_dispatch, kept in Redis for all worker processes."""
+
+    def get(self, run_id):
+        value = redis.get_redis().get(run_key + str(run_id))
+        return json.loads(value) if value else None
+
+    def put(self, run):
+        redis.get_redis().set(run_key + str(run['id']), json.dumps(run),
+                              ex=run_dispatch.RUN_TTL_SECONDS)
+
+
+run_cache = RedisRunCache()
 
 
 @app.task(bind=True, queue='starfish.run', name='fetch_run')
@@ -58,38 +74,14 @@ def monitor_run(args):
     :param args:
     :return:
     """
-    run_list = fetch()
-    if run_list:
-        retry_run = []
-        for r in run_list:
-            if r['site_uid'] == site_id and r['role'] == 'coordinator':
-                exist_run = get_run_from_redis(r)
-                if exist_run:
-                    run = json.loads(exist_run)
-                    r_status = format_status(r['status'])
-                    if r_status == format_status(run['status']) and \
-                            r_status in ['preparing', 'preparing', 'pending_aggregating']:
-                        retry_run.append(r)
-
-        if retry_run:
-            for run in retry_run:
-                process_task.s(run, True).apply_async(
-                    queue='starfish.processor')
+    for run in run_dispatch.retry_runs(fetch(), site_id, run_cache):
+        process_task.s(run, True).apply_async(
+            queue='starfish.processor')
 
 
 @app.task(bind=True, queue='starfish.run', name='site_heartbeat')
 def heartbeat(args):
     report_alive()
-
-
-def refresh_model(run_id):
-    now = epoch_time_in_sec()
-    ml_models_alive[run_id] = now
-    for i in ml_models_alive.keys():
-        v = ml_models_alive[i]
-        if v < now - 86400:
-            ml_models.pop(i)
-            ml_models_alive.pop(i)
 
 
 @app.task(bind=True, queue='starfish.processor', name='process_task')
@@ -101,82 +93,11 @@ def process_task(args, run, is_retry):
     :return:
     """
     logger.debug("Received: {} options: {}".format(args, run))
-    run_id = run['id']
-    cur_seq = run['cur_seq']
-    tasks = run['tasks']
-    model = tasks[cur_seq - 1]['model']
-    status = format_status(run['status'])
-    model_id = "{}_{}".format(run_id, cur_seq)
-    if is_stale(run):
-        logger.info("Dropped a stale message for run {}: {} is no longer its state".format(
-            run_id, status))
-        return
-
-    try:
-        snake_name = camel_to_snake(model)
-        klass = None
-        module_path = 'starfish.controller.tasks.{}.task'.format(snake_name)
-        try:
-            klass = load_class(module_path, model)
-        except (ImportError, AttributeError):
-            pass
-
-        if klass is None:
-            raise ImportError(f"Model {model} not found in any module path")
-        
-        if model_id in ml_models:
-            instance = ml_models[model_id]
-        else:
-            instance = klass(run)
-            ml_models[model_id] = instance
-        refresh_model(model_id)
-        instance.method_call(status, run, is_retry)
-
-    except (ImportError, AttributeError) as e:
-        logger.warn("{} not found with error: {}".format(model, e))
-
-
-def _progress(run):
-    """Status, task and round of a run record, for telling stale messages apart."""
-    cur_seq = run.get('cur_seq')
-    try:
-        current_round = run['tasks'][cur_seq -
-                                     1]['config'].get('current_round')
-    except (KeyError, IndexError, TypeError):
-        current_round = None
-    return format_status(run.get('status')), cur_seq, current_round
-
-
-def is_stale(run):
-    """
-    True when the router no longer has the run in the state this message carries.
-
-    A message can wait in the queue while the processor is down; after a restart
-    it would act on an old status or round, for example skip a later round's
-    validation. The current state was queued again at startup, so dropping the
-    old one loses nothing. If the router cannot be asked, the message is kept.
-    """
-    try:
-        response = requests.get('{0}/runs/{1}/'.format(router_url, run['id']),
-                                auth=router_auth(), timeout=10)
-    except requests.RequestException:
-        return False
-    if not response.ok:
-        return False
-    return _progress(response.json()) != _progress(run)
+    run_dispatch.process(run, is_retry)
 
 
 def fetch():
-    headers = {'Content-type': 'application/json'}
-    data = dict()
-    response = requests.get('{0}/runs/active/'.format(router_url),
-                            headers=headers,
-                            auth=router_auth(),
-                            data=json.dumps(data))
-    if response.ok:
-        return response.json()
-    else:
-        return None
+    return run_dispatch.fetch()
 
 
 def check_status_change(site_uid) -> []:
@@ -184,22 +105,7 @@ def check_status_change(site_uid) -> []:
     Check run status to decide whether send message to task processor
     :return:
     """
-    run_list = fetch()
-    if run_list:
-        changed_run = []
-        for r in run_list:
-            if r['site_uid'] == site_uid:
-                exist_run = get_run_from_redis(r)
-                if exist_run:
-                    run = json.loads(exist_run)
-                    if format_status(r['status']) != format_status(run['status']):
-                        changed_run.append(r)
-                        add_to_redis(r)
-                else:
-                    changed_run.append(r)
-                    add_to_redis(r)
-        return changed_run
-    return None
+    return run_dispatch.changed_runs(fetch(), site_uid, run_cache) or None
 
 
 def get_run_from_redis(run):
@@ -208,9 +114,7 @@ def get_run_from_redis(run):
 
 
 def add_to_redis(run):
-    r = redis.get_redis()
-    k = run_key + str(run['id'])
-    r.set(k, json.dumps(run), ex=86400)
+    run_cache.put(run)
 
 
 def remove_from_redis(run_id):
@@ -225,5 +129,14 @@ def reset_cache():
         r.delete(key)
 
 
-reset_cache()
+@worker_init.connect
+@beat_init.connect
+def reset_cache_on_start(**kwargs):
+    """
+    Empty the run cache when a worker or beat starts, so every active run is
+    dispatched again. Importing this module does not touch Redis.
+    """
+    reset_cache()
+
+
 app.autodiscover_tasks()

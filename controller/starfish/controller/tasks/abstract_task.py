@@ -762,15 +762,16 @@ class AbstractTask(ABC):
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(log_formatter)
 
-        # Create a console handler to print logs to the console
-        console_handler = logging.StreamHandler()
-        # Set the desired log level for the console handler
-        console_handler.setLevel(logging.DEBUG)
-        console_handler.setFormatter(log_formatter)
-
-        # Add the handlers to the logger
         logger.addHandler(file_handler)
-        logger.addHandler(console_handler)
+
+        # The records also reach the root logger's handlers. Celery workers and
+        # starfish-site give the root logger a console handler of their own, and a
+        # second one here would print every line twice.
+        if not logging.getLogger().handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.DEBUG)
+            console_handler.setFormatter(log_formatter)
+            logger.addHandler(console_handler)
 
         logger.debug(
             "Init logger for run {} - seq {} - round {} ".format(self.run_id, self.cur_seq, cur_round))

@@ -6,8 +6,7 @@ any agent or LLM module that got imported. Run it in a fresh interpreter::
 
     python -m starfish.controller.tasks.babel_brain_fno.probe [--require-no-anthropic] [--site-store]
 
-Exit code 0 when clean, 1 otherwise. Prints a JSON report. Importing the
-``starfish`` package connects to Redis, so Redis must be reachable.
+Exit code 0 when clean, 1 otherwise. Prints a JSON report.
 """
 
 import argparse

@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "starfish-site"
+version = "0.1.0"
+description = "Native Starfish-FL site, one process in place of the controller's Celery workers and Redis"
+packages = [{ include = "starfish_site" }]
+
+# The controller package, installed next to this one, brings every other
+# dependency. install.sh installs both.
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+requests = "^2.31"
+python-dotenv = "^1.0"
+
+[tool.poetry.scripts]
+starfish-site = "starfish_site.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

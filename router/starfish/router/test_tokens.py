@@ -2,16 +2,26 @@
 
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
+from django.test import SimpleTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from starfish.router.auth import hash_secret
+from starfish.router.auth import hash_secret, new_secret
 from starfish.router.models import EnrolmentCode, Run, Site, SiteToken
 from starfish.router.test_transfer import BASE, TransferTestCase, fresh
 from starfish import settings as router_settings
 
 API = '/starfish/api/v1/'
+
+
+class SecretTest(SimpleTestCase):
+
+    def test_a_code_never_starts_with_a_dash(self):
+        # starfish-site enrol --code -abc would read the code as an option
+        with patch('starfish.router.auth.secrets.token_urlsafe', side_effect=['-abc', 'def']):
+            self.assertEqual(new_secret(), 'def')
 
 
 class TokenTestCase(TransferTestCase):

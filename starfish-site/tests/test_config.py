@@ -7,6 +7,8 @@ import os
 import shutil
 import stat
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -26,7 +28,8 @@ class ConfigTest(unittest.TestCase):
         values = {'ROUTER_TOKEN': 'secret-token', 'SITE_UID': 'u', 'EXTRA': 'x y',
                   'BABELBRAIN_FL_STORE': '/data/My Store', 'EMPTY': ''}
         path = C.write_config(self.home, values)
-        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+        if os.name != 'nt':
+            self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
         read = C.read_config(self.home)
         self.assertEqual(read, {k: v for k, v in values.items() if v})
         keys = [line.split('=')[0] for line in path.read_text().splitlines()
@@ -161,6 +164,53 @@ class LockTest(unittest.TestCase):
             self.assertIsNone(cli.running_pid(home))
         finally:
             shutil.rmtree(home, ignore_errors=True)
+
+
+class StopTest(unittest.TestCase):
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+
+    def stop(self, now=False, wait=5.0):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['--home', self.home, 'stop', '--wait', str(wait)] + (['--now'] if now else []))
+        return code, out.getvalue()
+
+    def test_a_site_that_is_not_running_needs_no_stop(self):
+        self.assertEqual(self.stop(), (0, 'This site is not running.\n'))
+        self.assertIsNone(cli.stop_request(self.home))
+
+    def test_stop_asks_through_the_request_file_and_waits_for_the_lock(self):
+        lock = cli.hold_site(self.home)
+        seen = []
+
+        def site():
+            # The running site's loop, which looks for a request every second
+            while cli.stop_request(self.home) is None:
+                time.sleep(0.05)
+            seen.append(cli.stop_request(self.home))
+            cli.clear_stop_request(self.home)
+            lock.close()
+
+        thread = threading.Thread(target=site)
+        thread.start()
+        code, out = self.stop()
+        thread.join()
+        self.assertEqual(code, 0)
+        self.assertEqual(out, 'Stopped process {}.\n'.format(os.getpid()))
+        self.assertEqual(seen, ['step'])
+
+    def test_now_asks_to_cut_the_step_short(self):
+        lock = cli.hold_site(self.home)
+        self.addCleanup(lock.close)
+        code, out = self.stop(now=True, wait=0.6)
+        self.assertEqual(code, 1)
+        self.assertIn('still finishing the step in progress', out)
+        self.assertEqual(cli.stop_request(self.home), 'now')
+        cli.clear_stop_request(self.home)
+        self.assertIsNone(cli.stop_request(self.home))
 
 
 def messages(lines):

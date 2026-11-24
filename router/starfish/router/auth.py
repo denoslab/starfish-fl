@@ -23,7 +23,11 @@ def hash_secret(value):
 
 
 def new_secret():
-    return secrets.token_urlsafe(32)
+    # A code that starts with a dash reads as an option after --code on a command line
+    while True:
+        value = secrets.token_urlsafe(32)
+        if not value.startswith('-'):
+            return value
 
 
 class SiteIdentity:

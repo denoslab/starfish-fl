@@ -99,7 +99,10 @@ def write_config(home, values):
         lines.append("{}='{}'".format(key, value))
     fd, tmp = tempfile.mkstemp(dir=home, prefix='.site.env.')
     try:
-        os.fchmod(fd, 0o600)
+        if hasattr(os, 'fchmod'):
+            os.fchmod(fd, 0o600)
+        # Windows has no os.fchmod in Python 3.11, and the ACL of the user's
+        # profile folder keeps the file private there
         with os.fdopen(fd, 'w') as f:
             f.write('\n'.join(lines) + '\n')
         os.replace(tmp, config_path(home))

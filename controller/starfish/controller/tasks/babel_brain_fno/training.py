@@ -5,7 +5,6 @@ input assembly and the loss. This module only runs the loop around them.
 """
 
 import os
-import resource
 import sys
 import time
 
@@ -44,14 +43,44 @@ def stage_weights(curriculum, round_no):
     return weights
 
 
+def _peak_rss_bytes():
+    """The process's peak resident memory in bytes."""
+    if sys.platform == 'win32':
+        # The resource module exists on Unix only, and Windows reports the peak working set
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD),
+                        ('PeakWorkingSetSize', ctypes.c_size_t), ('WorkingSetSize', ctypes.c_size_t),
+                        ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaNonPagedPoolUsage', ctypes.c_size_t),
+                        ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t)]
+
+        kernel32 = ctypes.WinDLL('kernel32')
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        get_info = kernel32.K32GetProcessMemoryInfo
+        get_info.argtypes = [wintypes.HANDLE, ctypes.POINTER(Counters), wintypes.DWORD]
+        get_info.restype = wintypes.BOOL
+        counters = Counters()
+        counters.cb = ctypes.sizeof(Counters)
+        if not get_info(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+            return 0
+        return counters.PeakWorkingSetSize
+    import resource
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is in bytes on macOS and in KiB on Linux
+    return rss if sys.platform == 'darwin' else rss * 1024
+
+
 def peak_memory_mb(device):
     """Peak GPU memory on CUDA, else the process's peak resident memory."""
     import torch
     if device.type == 'cuda':
         return torch.cuda.max_memory_allocated(device) / 2 ** 20
-    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # ru_maxrss is in bytes on macOS and in KiB on Linux
-    return rss / 2 ** 20 if sys.platform == 'darwin' else rss / 1024
+    return _peak_rss_bytes() / 2 ** 20
 
 
 def _to(aux, device):

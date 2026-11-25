@@ -51,11 +51,12 @@ class ConfigTest(unittest.TestCase):
             C.api_url('10.0.0.5:8443')
 
     def test_the_home_comes_from_the_option_then_the_environment(self):
+        # Paths, which Windows writes with backslashes
         with patch.dict(os.environ, {C.HOME_ENV: '/from/env'}):
-            self.assertEqual(str(C.site_home('/from/option')), '/from/option')
-            self.assertEqual(str(C.site_home()), '/from/env')
+            self.assertEqual(C.site_home('/from/option'), C.Path('/from/option'))
+            self.assertEqual(C.site_home(), C.Path('/from/env'))
         with patch.dict(os.environ, {}, clear=True), patch('pathlib.Path.home', return_value=C.Path('/h')):
-            self.assertEqual(str(C.site_home()), '/h/.starfish-site')
+            self.assertEqual(C.site_home(), C.Path('/h') / '.starfish-site')
 
     def test_apply_config_skips_empty_values(self):
         environ = {}

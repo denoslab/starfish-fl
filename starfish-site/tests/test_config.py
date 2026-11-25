@@ -36,6 +36,12 @@ class ConfigTest(unittest.TestCase):
                 if line and not line.startswith('#')]
         self.assertEqual(keys, ['SITE_UID', 'ROUTER_TOKEN', 'BABELBRAIN_FL_STORE', 'EXTRA'])
 
+    def test_a_path_with_letters_beyond_ascii_survives(self):
+        # Windows writes its own code page unless told UTF-8, and python-dotenv reads UTF-8
+        values = {'SITE_UID': 'u', 'BABELBRAIN_FL_STORE': '/data/José Müller/Ergebnisse 東京'}
+        C.write_config(self.home, values)
+        self.assertEqual(C.read_config(self.home), values)
+
     def test_a_value_with_a_quote_is_refused(self):
         with self.assertRaises(ValueError):
             C.write_config(self.home, {'SITE_UID': "it's"})

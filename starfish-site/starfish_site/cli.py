@@ -258,7 +258,7 @@ def setup_logging(home, verbose):
     folder = C.log_folder(home)
     folder.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(name)s: %(message)s')
-    to_file = logging.handlers.RotatingFileHandler(folder / 'starfish-site.log',
+    to_file = logging.handlers.RotatingFileHandler(folder / 'starfish-site.log', encoding='utf-8',
                                                    maxBytes=10 * 2 ** 20, backupCount=5)
     to_screen = logging.StreamHandler(sys.stdout)
     level = logging.DEBUG if verbose else logging.INFO

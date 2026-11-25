@@ -57,7 +57,7 @@ class SampleRecord:
 
 def _load_validator():
     from jsonschema import Draft202012Validator, FormatChecker
-    with open(SCHEMA_PATH) as f:
+    with open(SCHEMA_PATH, encoding='utf-8') as f:
         schema = json.load(f)
     return Draft202012Validator(schema, format_checker=FormatChecker())
 
@@ -82,7 +82,7 @@ class HashCache:
         self._entries = {}
         if path and os.path.exists(path):
             try:
-                with open(path) as f:
+                with open(path, encoding='utf-8') as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     self._entries = data
@@ -110,7 +110,7 @@ class HashCache:
             return
         os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
         tmp = self.path + '.tmp'
-        with open(tmp, 'w') as f:
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(self._entries, f)
         os.replace(tmp, self.path)
 
@@ -148,7 +148,7 @@ class SampleStore:
                 STORE_VERSION_DIR, MANIFEST_NAME))
         validator = _load_validator()
         try:
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 lines = f.readlines()
         except OSError as e:
             raise StoreError('cannot read the manifest: {}'.format(e.strerror))

@@ -72,7 +72,7 @@ def append_manifest(store_root, entry):
     """Append one JSON line to the store manifest."""
     path = os.path.join(store_root, STORE_VERSION_DIR, MANIFEST_NAME)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'a') as f:
+    with open(path, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry) + '\n')
 
 

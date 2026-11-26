@@ -130,11 +130,11 @@ def check_router(values, report):
             ms, site.get('name'), site.get('id')))
 
 
-def describe_store(root):
+def describe_store(root, logger=None):
     """Usable samples of a store per bucket and split, and the reasons any were rejected."""
     from starfish.controller.tasks.babel_brain_fno.store import SampleStore
 
-    store = SampleStore(root)
+    store = SampleStore(root, logger=logger)
     counts = {}
     for record in store.samples():
         counts.setdefault(record.bucket_hz, {}).setdefault(record.split, 0)

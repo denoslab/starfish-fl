@@ -1,0 +1,141 @@
+name: Starfish Site app
+
+# Builds Starfish Site, the desktop app of a site, with the CPU build of
+# torch. Windows gets the setup program of Inno Setup and macOS a disk image.
+# Each runner tests the app's code offscreen, builds it, installs the build,
+# runs its starfish-site command and its check, saves pictures of its windows
+# and removes it again. The setup program, the disk image and the pictures
+# stay as artifacts for 14 days. Signing waits for the certificates.
+
+on:
+  pull_request:
+    branches: [main, feature/babelbrain-fl]
+    paths:
+      - 'starfish-site/**'
+      - 'controller/starfish/**'
+      - 'controller/pyproject.toml'
+      - '.github/workflows/starfish-site-app.yml'
+  push:
+    branches: [main, feature/babelbrain-fl, 'bbfl/**']
+    paths:
+      - 'starfish-site/**'
+      - 'controller/starfish/**'
+      - 'controller/pyproject.toml'
+      - '.github/workflows/starfish-site-app.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: starfish-site-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: app on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the site, the app's toolkit and PyInstaller
+        run: |
+          python -m venv "$RUNNER_TEMP/build"
+          if [ "$RUNNER_OS" = Windows ]; then
+            BUILD_PY="$RUNNER_TEMP/build/Scripts/python.exe"
+          else
+            BUILD_PY="$RUNNER_TEMP/build/bin/python"
+          fi
+          echo "BUILD_PY=$BUILD_PY" >> "$GITHUB_ENV"
+          "$BUILD_PY" -m pip install --upgrade pip
+          # PyPI's torch for macOS has MPS, and the CPU index serves Windows
+          if [ "$RUNNER_OS" = macOS ]; then
+            "$BUILD_PY" -m pip install "torch>=2.7,<3"
+          else
+            "$BUILD_PY" -m pip install "torch>=2.7,<3" --index-url https://download.pytorch.org/whl/cpu
+          fi
+          "$BUILD_PY" -m pip install -e controller -e "starfish-site[app]" "pyinstaller==6.16.*"
+
+      - name: Test the app's code offscreen
+        working-directory: starfish-site
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CI: 'true'
+        run: '"$BUILD_PY" -m unittest discover -s tests -v'
+
+      - name: Build
+        run: '"$BUILD_PY" starfish-site/packaging/build.py --out "$RUNNER_TEMP/dist"'
+
+      # Saving the installer before testing the installed build keeps it when a test fails
+      - name: Keep the setup program or the disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: starfish-site-${{ runner.os }}
+          path: |
+            ${{ runner.temp }}/dist/StarfishSite-Setup-*.exe
+            ${{ runner.temp }}/dist/StarfishSite-*.dmg
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Install, run and remove the Windows build
+        if: runner.os == 'Windows'
+        # A frozen app that fails shows a message box and waits for a click
+        timeout-minutes: 30
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Get-ChildItem "$env:RUNNER_TEMP\dist\StarfishSite-Setup-*.exe" | Select-Object -First 1
+          $target = "$env:RUNNER_TEMP\installed"
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$target`"", "/LOG=`"$env:RUNNER_TEMP\setup.log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+          & "$target\starfish-site.exe" --version
+          & "$target\starfish-site.exe" --home "$env:RUNNER_TEMP\check-home" check
+          if ($LASTEXITCODE -ne 0) { throw "check exited with $LASTEXITCODE" }
+          $shots = "$env:RUNNER_TEMP\screenshots"
+          $p = Start-Process "$target\Starfish Site.exe" -ArgumentList '--screenshots', "`"$shots`"" -Wait -PassThru
+          Get-Content "$shots\summary.txt"
+          if ($p.ExitCode -ne 0) { throw "the app's screenshots exited with $($p.ExitCode)" }
+          $class = (Get-ItemProperty 'HKCU:\Software\Classes\.starfish-invitation').'(default)'
+          if ($class -ne 'StarfishSite.Invitation') { throw 'invitation files are not linked to the app' }
+          $p = Start-Process "$target\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall exited with $($p.ExitCode)" }
+          # The uninstaller hands its work to a copy of itself, which can still run after the first one ends
+          for ($i = 0; $i -lt 60 -and (Test-Path "$target\Starfish Site.exe"); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path "$target\Starfish Site.exe") { throw 'uninstall left the app behind' }
+          if (Test-Path 'HKCU:\Software\Classes\.starfish-invitation') { throw 'uninstall left the file link' }
+
+      - name: Install, run and remove the macOS build
+        if: runner.os == 'macOS'
+        timeout-minutes: 30
+        run: |
+          image=$(ls "$RUNNER_TEMP"/dist/StarfishSite-*.dmg | head -1)
+          hdiutil attach "$image" -nobrowse -mountpoint "$RUNNER_TEMP/volume"
+          mkdir -p "$RUNNER_TEMP/Applications"
+          ditto "$RUNNER_TEMP/volume/Starfish Site.app" "$RUNNER_TEMP/Applications/Starfish Site.app"
+          hdiutil detach "$RUNNER_TEMP/volume"
+          app="$RUNNER_TEMP/Applications/Starfish Site.app/Contents/MacOS"
+          "$app/starfish-site" --version
+          "$app/starfish-site" --home "$RUNNER_TEMP/check-home" check
+          "$app/Starfish Site" --screenshots "$RUNNER_TEMP/screenshots"
+          cat "$RUNNER_TEMP/screenshots/summary.txt"
+          rm -rf "$RUNNER_TEMP/Applications/Starfish Site.app"
+
+      - name: Keep the pictures of the windows
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starfish-site-screenshots-${{ runner.os }}
+          path: ${{ runner.temp }}/screenshots/
+          retention-days: 14
+          if-no-files-found: ignore

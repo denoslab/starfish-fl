@@ -10,6 +10,11 @@ packages = [{ include = "starfish_site" }]
 python = ">=3.10,<3.12"
 requests = "^2.31"
 python-dotenv = "^1.0"
+# The desktop app, Starfish Site, installed with the extra "app"
+pyside6-essentials = { version = "^6.8", optional = true }
+
+[tool.poetry.extras]
+app = ["pyside6-essentials"]
 
 [tool.poetry.scripts]
 starfish-site = "starfish_site.cli:main"

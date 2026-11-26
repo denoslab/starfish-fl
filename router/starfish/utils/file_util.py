@@ -4,7 +4,10 @@ import re
 import tempfile
 import zipfile
 
-base_folder = '/starfish/artifacts'
+from django.conf import settings
+
+# MEDIA_ROOT, /starfish/artifacts in the image
+base_folder = settings.MEDIA_ROOT
 
 zip_prefix = '.zip'
 

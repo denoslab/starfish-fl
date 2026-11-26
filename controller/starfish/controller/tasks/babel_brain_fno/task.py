@@ -513,7 +513,7 @@ class BabelBrainFno(AbstractTask):
         path = file_utils.gen_url(
             self.run_id, self.cur_seq, self._round(), 'eval_report.json')
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2)
         try:
             transfer.upload_file(path, self.run_id, self.cur_seq, self._round(), 'logs',

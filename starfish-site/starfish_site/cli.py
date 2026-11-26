@@ -12,7 +12,6 @@ default. Each site on one machine needs its own folder.
 
 import argparse
 import atexit
-import fcntl
 import logging
 import logging.handlers
 import os
@@ -26,6 +25,11 @@ from pathlib import Path
 
 from starfish_site import __version__
 from starfish_site import config as C
+
+if os.name == 'nt':
+    import msvcrt
+else:
+    import fcntl
 
 logger = logging.getLogger('starfish_site')
 
@@ -127,6 +131,45 @@ def check(args):
 # start and stop
 
 PID_NAME = 'starfish-site.pid'
+STOP_NAME = 'starfish-site.stop'
+# Windows locks byte ranges and refuses to read a locked one, and the lock
+# therefore sits past the PID to keep the PID readable
+_LOCK_AT = 64
+
+
+def _try_lock(handle, shared=False):
+    """Lock an open PID file without waiting. False when another process holds it."""
+    if os.name == 'nt':
+        handle.seek(_LOCK_AT)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            return False
+        finally:
+            handle.seek(0)
+        return True
+    try:
+        fcntl.flock(handle, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _unlock(handle):
+    if os.name == 'nt':
+        handle.seek(_LOCK_AT)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        finally:
+            handle.seek(0)
+    else:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _read_pid(handle):
+    handle.seek(0)
+    text = handle.read(32).decode('ascii', 'replace').strip()
+    return int(text) if text.isdigit() else None
 
 
 def hold_site(home):
@@ -136,19 +179,18 @@ def hold_site(home):
     Two processes on one site would each act on its runs, so a second
     start exits. The lock goes with the process, even when it is killed.
     """
-    handle = open(Path(home) / PID_NAME, 'a+')
-    try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        handle.seek(0)
-        other = handle.read().strip()
+    path = Path(home) / PID_NAME
+    path.touch()
+    # Unbuffered, so reads, writes and the lock all act on the file itself
+    handle = open(path, 'r+b', buffering=0)
+    if not _try_lock(handle):
+        other = _read_pid(handle)
         handle.close()
         sys.exit('This site runs already{}. Stop it first with starfish-site stop.'.format(
-            ', as process ' + other if other else ''))
+            ', as process {}'.format(other) if other else ''))
     handle.seek(0)
     handle.truncate()
-    handle.write(str(os.getpid()))
-    handle.flush()
+    handle.write(str(os.getpid()).encode('ascii'))
     return handle
 
 
@@ -157,14 +199,41 @@ def running_pid(home):
     path = Path(home) / PID_NAME
     if not path.is_file():
         return None
-    with open(path) as handle:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
-        except BlockingIOError:
-            text = handle.read().strip()
-            return int(text) if text.isdigit() else None
-        fcntl.flock(handle, fcntl.LOCK_UN)
+    with open(path, 'rb', buffering=0) as handle:
+        if not _try_lock(handle, shared=True):
+            return _read_pid(handle)
+        _unlock(handle)
         return None
+
+
+def request_stop(home, now=False):
+    """
+    Ask the site that runs from ``home`` to stop.
+
+    The site looks for the request file every second. Windows has no signal
+    that another process can send to a Python handler, and the file works the
+    same on every system.
+    """
+    (Path(home) / STOP_NAME).write_text('now' if now else 'step')
+
+
+def stop_request(home):
+    """``'now'``, ``'step'`` for a stop after the step in progress, or None."""
+    try:
+        text = (Path(home) / STOP_NAME).read_text().strip()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        # Being written at this moment, the next look gets it
+        return None
+    return 'now' if text == 'now' else 'step'
+
+
+def clear_stop_request(home):
+    try:
+        (Path(home) / STOP_NAME).unlink()
+    except FileNotFoundError:
+        pass
 
 
 def stop(args):
@@ -173,10 +242,7 @@ def stop(args):
     if pid is None:
         print('This site is not running.')
         return 0
-    os.kill(pid, signal.SIGTERM)
-    if args.now:
-        time.sleep(0.5)
-        os.kill(pid, signal.SIGTERM)
+    request_stop(home, now=args.now)
     deadline = time.monotonic() + args.wait
     while time.monotonic() < deadline:
         if running_pid(home) is None:
@@ -192,7 +258,7 @@ def setup_logging(home, verbose):
     folder = C.log_folder(home)
     folder.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter('%(asctime)s %(levelname)-7s %(name)s: %(message)s')
-    to_file = logging.handlers.RotatingFileHandler(folder / 'starfish-site.log',
+    to_file = logging.handlers.RotatingFileHandler(folder / 'starfish-site.log', encoding='utf-8',
                                                    maxBytes=10 * 2 ** 20, backupCount=5)
     to_screen = logging.StreamHandler(sys.stdout)
     level = logging.DEBUG if verbose else logging.INFO
@@ -214,6 +280,8 @@ def start(args):
     if not (values.get('ROUTER_TOKEN') or values.get('ROUTER_PASSWORD')):
         sys.exit('No ROUTER_TOKEN in {}. Enrol first.'.format(C.config_path(home)))
     lock = hold_site(home)
+    # A request left by a site that was killed before it read it
+    clear_stop_request(home)
     log_file = setup_logging(home, args.verbose)
 
     # The controller code reads its settings when imported, so import it now
@@ -250,11 +318,22 @@ def start(args):
 
     signal.signal(signal.SIGINT, on_signal)
     signal.signal(signal.SIGTERM, on_signal)
+    if hasattr(signal, 'SIGBREAK'):
+        # Ctrl-Break in a Windows console
+        signal.signal(signal.SIGBREAK, on_signal)
     runner.start()
     logger.info('Polling the router. Press Ctrl-C to stop.')
+    handled = None
     while not runner.join(timeout=1.0):
-        pass
+        request = stop_request(home)
+        if request and request != handled:
+            handled = request
+            if not runner.stopping.is_set():
+                on_signal(None, None)
+            if request == 'now':
+                on_signal(None, None)
     logger.info('Stopped')
+    clear_stop_request(home)
     lock.close()
     return 0
 

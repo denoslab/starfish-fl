@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-MEDIA_ROOT = '/starfish/artifacts'
 
 # Streamed artifact transfer, SF-02
 STARFISH_MAX_ARTIFACT_BYTES = int(
@@ -25,6 +24,10 @@ STARFISH_ARTIFACT_DISK_RESERVE_BYTES = int(
     os.getenv('STARFISH_ARTIFACT_DISK_RESERVE_BYTES', 1024 ** 3))
 
 load_dotenv()
+
+# Uploaded artifacts. The image keeps them in /starfish/artifacts, and a router
+# outside Docker names its own folder
+MEDIA_ROOT = os.getenv('MEDIA_ROOT', '/starfish/artifacts')
 
 
 # Quick-start development settings - unsuitable for production

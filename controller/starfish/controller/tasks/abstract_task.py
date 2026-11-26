@@ -756,8 +756,8 @@ class AbstractTask(ABC):
         log_formatter = logging.Formatter(
             '%(asctime)s [%(levelname)s] %(message)s')
 
-        # Create a file handler to save logs to a file
-        file_handler = logging.FileHandler(url)
+        # Create a file handler to save logs to a file, in UTF-8 also on Windows
+        file_handler = logging.FileHandler(url, encoding='utf-8')
         # Set the desired log level for the file handler
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(log_formatter)

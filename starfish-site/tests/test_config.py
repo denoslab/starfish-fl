@@ -7,6 +7,8 @@ import os
 import shutil
 import stat
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -26,12 +28,19 @@ class ConfigTest(unittest.TestCase):
         values = {'ROUTER_TOKEN': 'secret-token', 'SITE_UID': 'u', 'EXTRA': 'x y',
                   'BABELBRAIN_FL_STORE': '/data/My Store', 'EMPTY': ''}
         path = C.write_config(self.home, values)
-        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+        if os.name != 'nt':
+            self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
         read = C.read_config(self.home)
         self.assertEqual(read, {k: v for k, v in values.items() if v})
         keys = [line.split('=')[0] for line in path.read_text().splitlines()
                 if line and not line.startswith('#')]
         self.assertEqual(keys, ['SITE_UID', 'ROUTER_TOKEN', 'BABELBRAIN_FL_STORE', 'EXTRA'])
+
+    def test_a_path_with_letters_beyond_ascii_survives(self):
+        # Windows writes its own code page unless told UTF-8, and python-dotenv reads UTF-8
+        values = {'SITE_UID': 'u', 'BABELBRAIN_FL_STORE': '/data/José Müller/Ergebnisse 東京'}
+        C.write_config(self.home, values)
+        self.assertEqual(C.read_config(self.home), values)
 
     def test_a_value_with_a_quote_is_refused(self):
         with self.assertRaises(ValueError):
@@ -48,11 +57,12 @@ class ConfigTest(unittest.TestCase):
             C.api_url('10.0.0.5:8443')
 
     def test_the_home_comes_from_the_option_then_the_environment(self):
+        # Paths, which Windows writes with backslashes
         with patch.dict(os.environ, {C.HOME_ENV: '/from/env'}):
-            self.assertEqual(str(C.site_home('/from/option')), '/from/option')
-            self.assertEqual(str(C.site_home()), '/from/env')
+            self.assertEqual(C.site_home('/from/option'), C.Path('/from/option'))
+            self.assertEqual(C.site_home(), C.Path('/from/env'))
         with patch.dict(os.environ, {}, clear=True), patch('pathlib.Path.home', return_value=C.Path('/h')):
-            self.assertEqual(str(C.site_home()), '/h/.starfish-site')
+            self.assertEqual(C.site_home(), C.Path('/h') / '.starfish-site')
 
     def test_apply_config_skips_empty_values(self):
         environ = {}
@@ -161,6 +171,53 @@ class LockTest(unittest.TestCase):
             self.assertIsNone(cli.running_pid(home))
         finally:
             shutil.rmtree(home, ignore_errors=True)
+
+
+class StopTest(unittest.TestCase):
+
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+
+    def stop(self, now=False, wait=5.0):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['--home', self.home, 'stop', '--wait', str(wait)] + (['--now'] if now else []))
+        return code, out.getvalue()
+
+    def test_a_site_that_is_not_running_needs_no_stop(self):
+        self.assertEqual(self.stop(), (0, 'This site is not running.\n'))
+        self.assertIsNone(cli.stop_request(self.home))
+
+    def test_stop_asks_through_the_request_file_and_waits_for_the_lock(self):
+        lock = cli.hold_site(self.home)
+        seen = []
+
+        def site():
+            # The running site's loop, which looks for a request every second
+            while cli.stop_request(self.home) is None:
+                time.sleep(0.05)
+            seen.append(cli.stop_request(self.home))
+            cli.clear_stop_request(self.home)
+            lock.close()
+
+        thread = threading.Thread(target=site)
+        thread.start()
+        code, out = self.stop()
+        thread.join()
+        self.assertEqual(code, 0)
+        self.assertEqual(out, 'Stopped process {}.\n'.format(os.getpid()))
+        self.assertEqual(seen, ['step'])
+
+    def test_now_asks_to_cut_the_step_short(self):
+        lock = cli.hold_site(self.home)
+        self.addCleanup(lock.close)
+        code, out = self.stop(now=True, wait=0.6)
+        self.assertEqual(code, 1)
+        self.assertIn('still finishing the step in progress', out)
+        self.assertEqual(cli.stop_request(self.home), 'now')
+        cli.clear_stop_request(self.home)
+        self.assertIsNone(cli.stop_request(self.home))
 
 
 def messages(lines):

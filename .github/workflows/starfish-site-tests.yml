@@ -1,0 +1,125 @@
+name: starfish-site Tests
+
+# A native site on Windows, macOS and Linux. Each runner installs the site as
+# install.sh does with the CPU build of torch, runs the site's tests and the
+# controller tests of the code a site runs, checks the computer as before
+# enrolment, and then runs three sites against a router of this checkout
+# without Docker, which Windows and macOS runners lack.
+
+on:
+  pull_request:
+    branches: [main, feature/babelbrain-fl]
+    paths:
+      - 'starfish-site/**'
+      - 'controller/starfish/**'
+      - 'controller/pyproject.toml'
+      - 'router/**'
+      - '.github/workflows/starfish-site-tests.yml'
+  push:
+    branches: [main, feature/babelbrain-fl, 'bbfl/**']
+    paths:
+      - 'starfish-site/**'
+      - 'controller/starfish/**'
+      - 'controller/pyproject.toml'
+      - 'router/**'
+      - '.github/workflows/starfish-site-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  site:
+    name: site on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      DATABASE_NAME: starfish-router
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: PostgreSQL for the router
+        uses: ikalnytskyi/action-setup-postgres@v9
+        with:
+          username: postgres
+          password: postgres
+          database: starfish-router
+          port: 5432
+          postgres-version: "15"
+
+      - name: Install the site with the CPU build of torch
+        run: |
+          python -m venv "$RUNNER_TEMP/site"
+          if [ "$RUNNER_OS" = Windows ]; then
+            SITE_PY="$RUNNER_TEMP/site/Scripts/python.exe"
+          else
+            SITE_PY="$RUNNER_TEMP/site/bin/python"
+          fi
+          echo "SITE_PY=$SITE_PY" >> "$GITHUB_ENV"
+          "$SITE_PY" -m pip install --upgrade pip
+          # PyPI's torch for macOS has MPS, and the CPU index serves Windows and Linux
+          if [ "$RUNNER_OS" = macOS ]; then
+            "$SITE_PY" -m pip install "torch>=2.7,<3"
+          else
+            "$SITE_PY" -m pip install "torch>=2.7,<3" --index-url https://download.pytorch.org/whl/cpu
+          fi
+          "$SITE_PY" -m pip install -e controller -e starfish-site
+
+      - name: Install the router
+        working-directory: router
+        run: |
+          python -m pip install poetry
+          poetry config virtualenvs.in-project true
+          poetry install --no-root
+          if [ "$RUNNER_OS" = Windows ]; then
+            echo "ROUTER_PY=$PWD/.venv/Scripts/python.exe" >> "$GITHUB_ENV"
+          else
+            echo "ROUTER_PY=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
+          fi
+
+      - name: starfish-site tests
+        working-directory: starfish-site
+        run: '"$SITE_PY" -m unittest discover -s tests -v'
+
+      - name: Controller tests of the code a site runs
+        working-directory: controller
+        run: >-
+          "$SITE_PY" manage.py test
+          starfish.controller.tasks.babel_brain_fno
+          starfish.controller.test_run_dispatch
+          starfish.controller.test_task_logger
+          starfish.controller.test_router_auth
+          starfish.controller.test_stale_messages
+
+      - name: Check the computer before enrolment
+        run: '"$SITE_PY" -m starfish_site --home "$RUNNER_TEMP/check-home" check'
+
+      - name: Three sites and a router without Docker
+        run: >-
+          "$SITE_PY" starfish-site/tests/e2e_without_docker.py
+          --router-python "$ROUTER_PY" --work "$RUNNER_TEMP/e2e" --rounds 2 --epochs 1
+
+      - name: Keep the logs of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/e2e/*.log
+            ${{ runner.temp }}/e2e/site-*/logs/
+          if-no-files-found: ignore

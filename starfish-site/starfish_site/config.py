@@ -99,8 +99,12 @@ def write_config(home, values):
         lines.append("{}='{}'".format(key, value))
     fd, tmp = tempfile.mkstemp(dir=home, prefix='.site.env.')
     try:
-        os.fchmod(fd, 0o600)
-        with os.fdopen(fd, 'w') as f:
+        if hasattr(os, 'fchmod'):
+            os.fchmod(fd, 0o600)
+        # Windows has no os.fchmod in Python 3.11, and the ACL of the user's
+        # profile folder keeps the file private there. UTF-8 as python-dotenv reads it,
+        # where Windows would write its own code page
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines) + '\n')
         os.replace(tmp, config_path(home))
     except BaseException:

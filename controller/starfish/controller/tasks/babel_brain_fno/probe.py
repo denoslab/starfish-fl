@@ -78,6 +78,11 @@ def run_round(allow_agents=False):
             task.preparing(run)
             task.running(run)
             task.pending_failed(run)
+            # The round's log file stays open in its handler, and Windows cannot
+            # delete the temporary folder around an open file
+            for handler in list(task.logger.handlers):
+                handler.close()
+                task.logger.removeHandler(handler)
             return [c.args[0] for c in notify.call_args_list]
 
 

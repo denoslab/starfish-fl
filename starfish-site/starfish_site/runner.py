@@ -25,6 +25,16 @@ HEARTBEAT_SECONDS = 5
 WARN_EVERY = 60
 
 
+def round_of(run):
+    """``, round N of M`` for a run whose task names its rounds, else an empty string."""
+    try:
+        config = run['tasks'][run['cur_seq'] - 1]['config']
+        current, total = config.get('current_round'), config.get('total_round')
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return ''
+    return ', round {} of {}'.format(current, total) if current and total else ''
+
+
 class SiteRunner:
     """
     Poll, queue and process this site's runs until :meth:`stop`.
@@ -99,7 +109,7 @@ class SiteRunner:
             run, is_retry = item
             self.current = (run['id'], run.get('status'), is_retry)
             started = self.clock()
-            logger.info('Run %s: %s%s', run['id'], run.get('status'),
+            logger.info('Run %s: %s%s%s', run['id'], run.get('status'), round_of(run),
                         ', again while it waits' if is_retry else '')
             try:
                 self.dispatch.process(run, is_retry)

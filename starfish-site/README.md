@@ -41,6 +41,17 @@ starfish-site enrol --router https://192.168.1.20:8443 --code <code> --name "Lab
 
 Enrolment gives the site an ID and a token and writes both to `~/.starfish-site/site.env`, readable by the owner only. The token stands for the site in every request to the router, and a leaked token should be revoked by the admin. The coordinator also passes `--eval-store` with its held-out test set. A site whose automatic device choice fails passes `--device cpu`.
 
+### Invitation files
+
+Starfish Site, the desktop app below, enrols from an invitation file. The router's admin writes one per site with `starfish-site invite`, which asks the router for a new enrolment code with an admin user's password from `ROUTER_PASSWORD` or a prompt.
+
+```bash
+starfish-site invite --router https://192.168.1.20:8443 --user admin --out "Hospital A" \
+    --testbed "BabelBrain FL testbed" --note "Questions go to the lab, room 2.14" --ca-cert router-ca.pem
+```
+
+The file `Hospital A.starfish-invitation` holds the router's URL, the code with its expiry, the note and the CA certificate. Its code works once, and the file stays as private as a password until the site has used it. `--project` adds the site to a project on enrolment, and `--valid-hours` sets the expiry, 72 hours by default.
+
 ## Check
 
 ```bash
@@ -86,6 +97,19 @@ The site polls the router every 5 s, reports itself alive every 5 s and works on
 ## Update and remove
 
 After `git pull` the site runs the new code from its next start. When a pull changes dependencies, running `starfish-site/install.sh` again brings them in. Deleting `~/.starfish-site` and `~/.local/bin/starfish-site` removes a site, and `~/.cache/uv` holds uv's download cache.
+
+## Starfish Site, the desktop app
+
+Starfish Site is the app for the people at a site, who work without a terminal. It looks like the usual Windows software of 2000 to 2010, on Windows and on macOS. Its setup wizard opens the invitation file, names the computer, takes the folder of cases, checks the computer and starts the site. The main window then shows what the site does, with Start and Stop, the site's projects, its cases, what happened and its settings, and the starfish icon in the notification area of the taskbar or in the menu bar opens it again. The site runs as `starfish-site start` in a process of its own, which keeps training when the window closes, and the app stops it through the same request file as `starfish-site stop`.
+
+From a checkout the app runs with the extra `app`, which brings PySide6.
+
+```bash
+pip install -e controller -e "starfish-site[app]"
+python -m starfish_site.app
+```
+
+`packaging/build.py` builds it with PyInstaller into one folder with two programs, the app and the `starfish-site` command. On Windows Inno Setup 6 then makes the setup program `StarfishSite-Setup-<version>.exe`, which installs for the current user without admin rights, and on macOS `hdiutil` makes the disk image `StarfishSite-<version>.dmg`. The workflow `starfish-site-app.yml` builds both with the CPU build of torch, installs them on GitHub's runners, runs their check and keeps them as artifacts. Signing waits for the code signing certificates.
 
 ## For developers
 

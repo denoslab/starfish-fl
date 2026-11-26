@@ -5,9 +5,11 @@ The ``starfish-site`` command.
     starfish-site check [--quick]
     starfish-site start [--verbose]
     starfish-site stop [--now]
+    starfish-site invite --router URL --user ADMIN --out FILE ...
 
 ``--home`` before the command picks the site folder, ``~/.starfish-site`` by
-default. Each site on one machine needs its own folder.
+default. Each site on one machine needs its own folder. ``invite`` is for the
+router's admin and writes the invitation file that Starfish Site opens.
 """
 
 import argparse
@@ -57,41 +59,62 @@ def load(home, require=('SITE_UID', 'ROUTER_URL')):
 
 # enrol
 
-def enrol(args):
+class EnrolError(Exception):
+    """
+    Enrolment did not happen.
+
+    ``kind`` is ``enrolled``, ``url``, ``certificate``, ``unreachable``,
+    ``refused`` or ``failed``, and the message is the command line's.
+    """
+
+    def __init__(self, kind, message):
+        super().__init__(message)
+        self.kind = kind
+
+
+def enrol_site(home, router, code, name, description='', store=None, eval_store=None, device=None,
+               ca_cert=None, force=False):
+    """
+    Enrol the site in ``home`` with a code from the router's admin and write its site.env.
+
+    The command and Starfish Site both enrol through here. Returns the
+    router's answer, with the site's ``uid``, its router id ``site`` and the
+    ``project`` the code added it to, and the path of site.env.
+    """
     import requests
 
-    home = C.site_home(args.home)
+    home = Path(home)
     values = C.read_config(home)
-    if values.get('ROUTER_TOKEN') and not args.force:
-        sys.exit('This site is enrolled already, as {}. Pass --force to enrol it again '
-                 'with a new code.'.format(values.get('SITE_UID')))
+    if values.get('ROUTER_TOKEN') and not force:
+        raise EnrolError('enrolled', 'This site is enrolled already, as {}. Pass --force to enrol it '
+                         'again with a new code.'.format(values.get('SITE_UID')))
     try:
-        url = C.api_url(args.router)
+        url = C.api_url(router)
     except ValueError as e:
-        sys.exit(str(e))
+        raise EnrolError('url', str(e))
     home.mkdir(parents=True, exist_ok=True)
     verify = True
-    if args.ca_cert:
+    if ca_cert:
         ca = home / C.CA_NAME
-        if os.path.abspath(args.ca_cert) != str(ca):
-            shutil.copyfile(args.ca_cert, ca)
+        if os.path.abspath(ca_cert) != os.path.abspath(ca):
+            shutil.copyfile(ca_cert, ca)
         verify = str(ca)
     elif values.get('REQUESTS_CA_BUNDLE'):
         verify = values['REQUESTS_CA_BUNDLE']
     uid = values.get('SITE_UID') or str(uuid.uuid4())
-    body = {'code': args.code, 'uid': uid, 'name': args.name,
-            'description': args.description or ''}
+    body = {'code': code, 'uid': uid, 'name': name, 'description': description or ''}
     try:
         response = requests.post(url + '/sites/enrol/', json=body, timeout=30, verify=verify)
     except requests.exceptions.SSLError as e:
-        sys.exit('The router\'s HTTPS certificate is not trusted: {}\n'
-                 'Pass the CA file from the router\'s admin with --ca-cert.'.format(e))
+        raise EnrolError('certificate', 'The router\'s HTTPS certificate is not trusted: {}\n'
+                         'Pass the CA file from the router\'s admin with --ca-cert.'.format(e))
     except requests.RequestException as e:
-        sys.exit('The router at {} cannot be reached: {}'.format(url, e))
+        raise EnrolError('unreachable', 'The router at {} cannot be reached: {}'.format(url, e))
     if response.status_code == 403:
-        sys.exit('The router refused the code. It may be mistyped, used or expired.')
+        raise EnrolError('refused', 'The router refused the code. It may be mistyped, used or expired.')
     if response.status_code != 201:
-        sys.exit('Enrolment failed with {}: {}'.format(response.status_code, response.text[:300]))
+        raise EnrolError('failed', 'Enrolment failed with {}: {}'.format(
+            response.status_code, response.text[:300]))
     answer = response.json()
     values.update({'SITE_UID': answer['uid'], 'ROUTER_URL': url, 'ROUTER_TOKEN': answer['token'],
                    'STARFISH_DISABLE_AGENTS': values.get('STARFISH_DISABLE_AGENTS') or '1'})
@@ -99,15 +122,44 @@ def enrol(args):
     values.pop('ROUTER_PASSWORD', None)
     if verify is not True:
         values['REQUESTS_CA_BUNDLE'] = verify
-    for key, value in (('BABELBRAIN_FL_STORE', args.store), ('BABELBRAIN_FL_EVAL_STORE', args.eval_store),
-                       ('BABELBRAIN_FL_DEVICE', args.device)):
+    for key, value in (('BABELBRAIN_FL_STORE', store), ('BABELBRAIN_FL_EVAL_STORE', eval_store),
+                       ('BABELBRAIN_FL_DEVICE', device)):
         if value:
             values[key] = os.path.abspath(value) if key.endswith('STORE') else value
-    path = C.write_config(home, values)
+    return answer, C.write_config(home, values)
+
+
+def enrol(args):
+    home = C.site_home(args.home)
+    try:
+        answer, path = enrol_site(home, args.router, args.code, args.name, args.description, args.store,
+                                  args.eval_store, args.device, args.ca_cert, args.force)
+    except EnrolError as e:
+        sys.exit(str(e))
     print('Enrolled as site "{}", {}, router id {}.'.format(args.name, answer['uid'], answer['site']))
     if answer.get('project'):
         print('The code also added this site to project {}.'.format(answer['project']))
     print('Settings are in {}. Next run starfish-site check.'.format(path))
+
+
+# invite
+
+def invite(args):
+    import getpass
+
+    from starfish_site import invitation as I
+
+    password = os.environ.get('ROUTER_PASSWORD') or getpass.getpass(
+        'Password of {} on the router: '.format(args.user))
+    try:
+        found = I.create(args.router, args.user, password, project=args.project, note=args.note,
+                         valid_hours=args.valid_hours, testbed=args.testbed, ca_cert=args.ca_cert)
+        path = I.write(args.out, found)
+    except (I.InvitationError, OSError) as e:
+        sys.exit(str(e))
+    print('Wrote {}, valid until {}.'.format(path, I.describe_time(found.expires_at)))
+    print('Send it to the site, where Starfish Site opens it. Its code works once, so keep the file '
+          'as private as a password until the site has used it.')
 
 
 # check
@@ -368,6 +420,19 @@ def parser():
     t.add_argument('--now', action='store_true', help='cut the step in progress short')
     t.add_argument('--wait', type=float, default=30, help='seconds to wait, default 30')
     t.set_defaults(func=stop)
+
+    i = sub.add_parser('invite', help='for the router\'s admin, write an invitation file for a new site')
+    i.add_argument('--router', required=True, help='router URL as the sites reach it')
+    i.add_argument('--user', required=True, help='an admin user of the router, whose password '
+                   'comes from $ROUTER_PASSWORD or a prompt')
+    i.add_argument('--out', required=True,
+                   help='the file to write, for example "Hospital A.starfish-invitation"')
+    i.add_argument('--project', type=int, help='a project the new site joins on enrolment')
+    i.add_argument('--testbed', default='', help='a name for the testbed, shown to the site')
+    i.add_argument('--note', default='', help='a line for the site, such as who to contact')
+    i.add_argument('--valid-hours', type=float, default=72, help='hours the code stays valid, default 72')
+    i.add_argument('--ca-cert', help='CA file that signed the router\'s certificate, sent along')
+    i.set_defaults(func=invite)
     return p
 
 
